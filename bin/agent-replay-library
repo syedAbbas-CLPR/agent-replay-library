@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec node "$HOME/.local/share/agent-replay-library/server.mjs" "${1:-7331}"

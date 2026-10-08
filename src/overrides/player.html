@@ -1,0 +1,3979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='none' stroke='%23bb9af7' stroke-width='2'/><polygon points='12,8 12,24 24,16' fill='%23bb9af7'/></svg>">
+<title>/*PAGE_TITLE*/</title>
+<meta name="theme-color" content="/*THEME_BG*/">
+<meta property="og:title" content="/*PAGE_TITLE*/">
+<meta property="og:description" content="/*PAGE_DESCRIPTION*/">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/*OG_IMAGE*/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="/*PAGE_TITLE*/">
+<meta name="twitter:description" content="/*PAGE_DESCRIPTION*/">
+<meta name="twitter:image" content="/*OG_IMAGE*/">
+<style>
+/*THEME_CSS*/
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: var(--font-size, /*FONT_SIZE*/13px);
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+.container {
+  width: min(1240px, 96vw);
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* Controls bar */
+.controls {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1240px;
+  z-index: 100;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 8px 0;
+  padding: 8px;
+  flex-wrap: wrap;
+}
+
+.controls button {
+  background: var(--bg-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+  height: 34px;
+  min-width: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.controls button:hover { background: var(--border); }
+#btn-play { width: 36px; }
+#btn-prev, #btn-next { min-width: 30px; width: 30px; font-size: 13px; }
+#btn-prev-turn, #btn-next-turn { min-width: 26px; width: 26px; font-size: 10px; padding: 2px; }
+.nav-group { display: flex; align-items: center; gap: 3px; }
+.controls button.active { background: var(--accent-dim); border-color: var(--accent); }
+
+.bar-title {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  margin: 0 0 0 12px;
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 480px) { .bar-title { display: none; } .nav-group { margin-right: auto; } }
+body.in-iframe .bar-title {
+  cursor: pointer;
+}
+body.in-iframe .bar-title::after {
+  content: " \2197";
+  font-size: 9px;
+}
+body.in-iframe .bar-title:hover {
+  color: var(--text);
+}
+
+.progress-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 15px 12px 8px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: height 0.15s;
+}
+.progress-bar::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  bottom: -12px;
+  left: 0;
+  right: 0;
+}
+.progress-bar:hover {
+  height: 6px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.2s;
+}
+.progress-tooltip {
+  position: absolute;
+  bottom: 12px;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+.progress-bar:hover .progress-tooltip {
+  opacity: 1;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  margin-left: 12px;
+}
+
+
+.speed-wrap {
+  position: relative;
+}
+.paced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.controls-secondary button {
+  width: 34px;
+  min-width: 34px;
+}
+.speed-wrap button#speed-btn {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  letter-spacing: -0.5px;
+}
+.speed-popover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 60px;
+}
+.speed-wrap.open .speed-popover { display: block; }
+.speed-popover button {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 16px;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+}
+.speed-popover button:hover { background: var(--bg-hover); color: var(--text); }
+.speed-popover button.active { color: var(--accent); font-weight: 600; }
+
+.filter-wrap {
+  position: relative;
+}
+.filter-popover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 140px;
+}
+.filter-wrap.open .filter-popover { display: block; }
+.filter-popover label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  padding: 4px 0;
+  white-space: nowrap;
+}
+.filter-popover label:hover { color: var(--text); }
+.filter-popover input[type="checkbox"] { accent-color: var(--accent); }
+.font-size-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.font-size-row-label { min-width: 50px; }
+.font-size-cycle {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  min-width: 28px;
+  text-align: center;
+}
+.font-size-cycle:hover { color: var(--text); border-color: var(--accent-dim); }
+
+.controls-secondary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* More menu (replaces secondary controls on mobile + iframe) */
+.more-wrap { position: relative; display: none; margin-left: 6px; }
+@media (max-width: 600px) { .more-wrap { display: block; } }
+.more-popover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 180px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.more-wrap.open .more-popover { display: block; }
+.more-open-link { display: none; font-size: 12px; color: var(--text-dim); text-decoration: none; padding: 4px 0; white-space: nowrap; }
+.more-open-link + hr.more-divider { display: none; }
+body.in-iframe .more-open-link { display: block; }
+body.in-iframe .more-open-link + hr.more-divider { display: block; }
+.more-open-link:hover { color: var(--text); }
+.more-popover label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  padding: 4px 0;
+  white-space: nowrap;
+}
+.more-popover label:hover { color: var(--text); }
+.more-popover input[type="checkbox"] { accent-color: var(--accent); }
+.more-popover .more-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.more-popover .more-row-label {
+  min-width: 50px;
+}
+.more-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
+}
+
+#more-btn {
+  background: none !important;
+  border: none !important;
+  font-size: 16px;
+  font-weight: bold;
+  min-width: 20px;
+  width: 20px;
+  padding: 0;
+  justify-content: flex-end;
+}
+#chapter-btn { font-size: 16px; }
+
+@media (max-width: 600px) {
+  body:not(.in-iframe) .controls-secondary { display: none; }
+  body:not(.in-iframe) .chapter-wrap { display: none !important; }
+}
+/* iframe */
+/* Narrow iframes: collapse into more menu */
+@media (max-width: 600px) {
+  body.in-iframe .controls-secondary { display: none; }
+  body.in-iframe .chapter-wrap { display: none !important; }
+}
+
+/* Transcript area */
+.transcript {
+  padding: calc(100vh - 80px) 16px 100vh;
+  min-height: 100vh;
+}
+
+.turn {
+  margin-bottom: 24px;
+  opacity: 0.25;
+  transition: opacity 0.4s;
+}
+.turn.visible {
+  opacity: 0.35;
+}
+.turn.visible.active {
+  opacity: 1;
+}
+
+/* User message */
+.user-msg {
+  margin-bottom: 8px;
+}
+.user-prompt {
+  color: var(--accent);
+  font-weight: 600;
+}
+.user-text {
+  color: var(--text-bright);
+  word-break: break-word;
+}
+
+.paced-segment {
+  opacity: 0.28;
+  transition: opacity 0.12s ease-out;
+}
+.paced-segment.word-lit { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .paced-segment { opacity: 1 !important; transition: none; }
+}
+
+/* Timestamp */
+.timestamp {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+/* Assistant text */
+.assistant-text {
+  color: var(--text);
+  word-break: break-word;
+  margin: 6px 0;
+  padding-left: 4px;
+  line-height: 1.6;
+}
+.assistant-text p { margin: 0.4em 0; }
+.assistant-text pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+  line-height: 1.4;
+}
+.assistant-text pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+.assistant-text code {
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+.assistant-text h3, .assistant-text h4, .assistant-text h5, .assistant-text h6 {
+  color: var(--text-bright);
+  margin: 0.8em 0 0.3em;
+  line-height: 1.3;
+}
+.assistant-text h3 { font-size: 1.15em; }
+.assistant-text h4 { font-size: 1.05em; }
+.assistant-text h5, .assistant-text h6 { font-size: 1em; }
+.assistant-text ul, .assistant-text ol {
+  margin: 0.4em 0;
+  padding-left: 1.6em;
+}
+.assistant-text li { margin: 0.15em 0; }
+.assistant-text a {
+  color: var(--blue);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--blue) 40%, transparent);
+}
+.assistant-text a:hover { text-decoration-color: var(--blue); }
+.assistant-text strong { color: var(--text-bright); }
+.assistant-text hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.8em 0;
+}
+.assistant-text table, .user-text table, .thinking-body table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.95em;
+  width: auto;
+  overflow-x: auto;
+  display: block;
+}
+.assistant-text th, .assistant-text td,
+.user-text th, .user-text td,
+.thinking-body th, .thinking-body td {
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  text-align: left;
+}
+.assistant-text th, .user-text th, .thinking-body th {
+  background: var(--bg-surface);
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+/* Background task notification badge */
+.bg-task-badge {
+  display: inline-block;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--text);
+  margin: 4px 0;
+}
+.bg-task-badge::before {
+  content: "⚡ ";
+}
+
+/* Markdown in user text and thinking */
+.user-text pre, .thinking-body pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.user-text pre code, .thinking-body pre code {
+  background: none; padding: 0; border-radius: 0;
+}
+.user-text code, .thinking-body code {
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+.user-text a, .thinking-body a {
+  color: var(--blue);
+  text-decoration: underline;
+}
+.user-text strong, .thinking-body strong { color: var(--text-bright); }
+.user-text ul, .user-text ol, .thinking-body ul, .thinking-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.6em;
+}
+.user-text p, .thinking-body p { margin: 0.4em 0; }
+
+/* Tool call */
+.tool-block {
+  margin: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--tool-bg);
+}
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.tool-header:hover { background: var(--bg-hover); }
+.tool-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex-shrink: 0;
+}
+.tool-name {
+  color: var(--cyan);
+  font-weight: 600;
+}
+.tool-args-preview {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.tool-chevron {
+  color: var(--text-dim);
+  font-size: 10px;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.tool-block.open .tool-chevron { transform: rotate(90deg); }
+
+.tool-body {
+  display: none;
+  border-top: 1px solid var(--border);
+  margin-left: 20px;
+  border-left: 2px solid #3f3f46;
+}
+.tool-block.open .tool-body { display: block; }
+
+.activity-badge {
+  min-width: 74px;
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .7px;
+  text-align: center;
+  color: #fff;
+}
+.activity-code-edit { border-color: #2dd4bf; box-shadow: inset 3px 0 #2dd4bf; }
+.activity-code-edit .activity-badge, .activity-code-edit .tool-name { color: #5eead4; }
+.activity-md-edit { border-color: #d97706; box-shadow: inset 3px 0 #d97706; }
+.activity-md-edit .activity-badge, .activity-md-edit .tool-name { color: #fbbf24; }
+.activity-search { border-color: #2563eb; box-shadow: inset 3px 0 #2563eb; }
+.activity-search .activity-badge, .activity-search .tool-name { color: #60a5fa; }
+.activity-launch { border-color: #16a34a; box-shadow: inset 3px 0 #16a34a; }
+.activity-launch .activity-badge, .activity-launch .tool-name { color: #4ade80; }
+.activity-test, .activity-build { border-color: #7c3aed; box-shadow: inset 3px 0 #7c3aed; }
+.activity-test .activity-badge, .activity-test .tool-name,
+.activity-build .activity-badge, .activity-build .tool-name { color: #c4b5fd; }
+.activity-git { border-color: #ea580c; box-shadow: inset 3px 0 #ea580c; }
+.activity-git .activity-badge, .activity-git .tool-name { color: #fb923c; }
+.activity-command, .activity-other, .activity-read { border-color: #525252; box-shadow: inset 3px 0 #525252; }
+.activity-command .activity-badge, .activity-other .activity-badge,
+.activity-read .activity-badge { color: #d4d4d4; }
+
+.tool-input, .tool-result {
+  padding: 8px 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.tool-input {
+  color: var(--text-dim);
+  background: var(--tool-bg);
+}
+.tool-result {
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  color: var(--green);
+}
+.tool-result-label, .tool-input-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.command-list { padding:10px; display:flex; flex-direction:column; gap:8px; background:#050505; }
+.command-card { border:1px solid #2b2b2b; border-left:4px solid #60a5fa; border-radius:4px; background:#000; overflow:hidden; }
+.command-card-label { padding:5px 9px; color:#a3a3a3; background:#090909; border-bottom:1px solid #202020; font-size:9px; font-weight:800; letter-spacing:.8px; }
+.command-card pre { margin:0; padding:10px 12px; color:#fff; white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+.activity-wait { border-color:#737373; box-shadow:inset 3px 0 #737373; }
+.activity-wait .activity-badge, .activity-wait .tool-name { color:#d4d4d4; }
+
+/* Diff view for Edit/Write tools */
+.diff-view { font-family: inherit; font-size: 12px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+.diff-file { display:flex; flex-direction:column; gap:2px; color:#fff; margin:0 0 10px; padding:8px 10px; background:#020202; border:1px solid #343434; border-left:4px solid #2dd4bf; border-radius:4px; box-shadow:0 0 18px rgba(45,212,191,.08); }
+.activity-md-edit .diff-file { border-left-color:#d97706; box-shadow:0 0 18px rgba(217,119,6,.08); }
+.diff-file-name { color:#fff; font-size:13px; font-weight:800; letter-spacing:.2px; }
+.diff-file-path { color:#a3a3a3; font-size:10px; word-break:break-all; }
+.diff-line-del { color: var(--red); background: rgba(248,81,73,0.1); }
+.diff-line-add { color: var(--green); background: rgba(63,185,80,0.1); }
+.diff-line-ctx { color: var(--text-dim); }
+.diff-result { color: var(--text-dim); font-size: 11px; padding: 6px 10px; border-top: 1px solid var(--border); }
+.diff-result-error { color: var(--red); }
+.tool-indicator.tool-error { background: var(--red); }
+.tool-result.tool-result-error { color: var(--red); }
+
+.activity-legend {
+  position:fixed; left:12px; top:12px; z-index:95; width:178px;
+  background:#070707; border:1px solid #292929; border-radius:8px;
+  box-shadow:0 10px 30px #000c; color:#fff; overflow:hidden;
+}
+.activity-legend { display:none!important; }
+.activity-legend-header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:#0c0c0c; border-bottom:1px solid #222; font-size:10px; font-weight:800; letter-spacing:1px; cursor:pointer; }
+.activity-legend-toggle { color:#aaa; }
+.activity-legend-body { padding:6px; }
+.activity-legend.collapsed .activity-legend-body { display:none; }
+.activity-legend-row { display:grid; grid-template-columns:9px 1fr auto; align-items:center; gap:7px; padding:4px 5px; color:#ddd; font-size:10px; }
+.activity-legend-dot { width:7px; height:7px; border-radius:50%; background:#777; }
+.activity-legend-count { color:#777; font-variant-numeric:tabular-nums; }
+.legend-code-edit .activity-legend-dot { background:#2dd4bf; }
+.legend-md-edit .activity-legend-dot { background:#d97706; }
+.legend-search .activity-legend-dot { background:#2563eb; }
+.legend-launch .activity-legend-dot { background:#16a34a; }
+.legend-test .activity-legend-dot, .legend-build .activity-legend-dot { background:#7c3aed; }
+.legend-git .activity-legend-dot { background:#ea580c; }
+.legend-read .activity-legend-dot { background:#a3a3a3; }
+.legend-wait .activity-legend-dot { background:#737373; }
+@media(max-width:1250px) { .activity-legend { position:fixed; top:8px; left:8px; width:150px; opacity:.94; } }
+@media(max-width:700px) { .activity-legend { display:none; } }
+
+.replay-notes {
+  position:fixed; right:12px; top:12px; z-index:96; width:250px;
+  background:#070707; border:1px solid #292929; border-radius:8px;
+  box-shadow:0 10px 30px #000c; color:#fff; overflow:hidden;
+}
+.replay-notes-header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:#0c0c0c; border-bottom:1px solid #222; font-size:10px; font-weight:800; letter-spacing:1px; cursor:pointer; }
+.replay-notes-body { padding:9px; }
+.replay-notes.collapsed .replay-notes-body { display:none; }
+.replay-notes.collapsed { width:auto; min-width:82px; }
+.replay-notes.collapsed .replay-notes-header { border-bottom:0; padding:8px 11px; }
+.replay-notes.collapsed #replayNotesToggle { display:none; }
+.section-note-add { margin-left:auto; flex:0 0 auto; width:20px; height:20px; padding:0; border:1px solid #444; border-radius:4px; background:#0a0a0a; color:#ddd; font:900 13px/18px ui-monospace,SFMono-Regular,Menlo,monospace; cursor:pointer; }
+.section-note-add:hover { color:#000; background:#fff; border-color:#fff; }
+.section-note-add.has-note { color:#000; background:#facc15; border-color:#facc15; }
+.collapsible-wrap > .section-note-add { position:absolute; right:3px; top:3px; z-index:4; }
+.section-note-editor { padding:9px; background:#080808; border-top:1px solid #333; }
+.section-note-editor textarea { box-sizing:border-box; width:100%; min-height:74px; resize:vertical; padding:8px; color:#fff; background:#000; border:1px solid #444; border-radius:4px; font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.section-note-editor textarea:focus { outline:1px solid #facc15; border-color:#facc15; }
+.section-note-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:6px; }
+.section-note-actions button { padding:5px 9px; color:#fff; background:#111; border:1px solid #444; border-radius:4px; font:800 9px ui-monospace,SFMono-Regular,Menlo,monospace; cursor:pointer; }
+.section-note-actions .save { color:#000; background:#facc15; border-color:#facc15; }
+.replay-export { position:fixed; top:12px; right:105px; z-index:97; padding:8px 10px; color:#fff; background:#070707; border:1px solid #292929; border-radius:6px; font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.6px; cursor:pointer; }
+.replay-export:hover { color:#000; background:#fff; border-color:#fff; }
+.replay-notes textarea { width:100%; min-height:112px; resize:vertical; padding:9px; color:#fff; background:#000; border:1px solid #333; border-radius:4px; font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.replay-notes textarea:focus { outline:1px solid #fff; border-color:#fff; }
+.replay-note-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:8px; }
+.replay-note-actions button { padding:7px 6px; color:#fff; background:#111; border:1px solid #444; border-radius:4px; font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.5px; cursor:pointer; }
+.replay-note-actions button:hover { background:#222; border-color:#fff; }
+.replay-marker-status { min-height:16px; margin-top:7px; color:#aaa; font-size:9px; line-height:1.4; }
+.reader-marker { outline:2px solid #facc15 !important; outline-offset:3px; position:relative; }
+.reader-marker::before { content:"YOUR MARK"; position:absolute; right:4px; top:-17px; padding:2px 5px; background:#facc15; color:#000; font-size:8px; font-weight:900; letter-spacing:.5px; z-index:5; }
+@media(max-width:1000px) { .replay-notes { width:210px; opacity:.97; } }
+@media(max-width:760px) { .replay-notes { display:none; } }
+
+/* Tool group (consecutive tool calls) */
+.tool-group {
+  margin: 6px 0;
+}
+.tool-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  color: var(--cyan);
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tool-bg);
+  transition: background 0.15s;
+}
+.tool-group-header:hover { background: var(--bg-hover); }
+.tool-group-chevron {
+  font-size: 10px;
+  color: var(--text-dim);
+  transition: transform 0.2s;
+}
+.tool-group.open .tool-group-chevron { transform: rotate(90deg); }
+.tool-group-names {
+  color: var(--text-dim);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.tool-group-body {
+  display: none;
+}
+.tool-group.open .tool-group-body { display: block; }
+.tool-group.open .tool-group-header {
+  border-radius: 6px 6px 0 0;
+  border-bottom: none;
+}
+
+/* Thinking block */
+.thinking-block {
+  margin: 10px 0;
+  border-left: 3px solid #a3a3a3;
+  padding: 8px 10px 8px 16px;
+  background:linear-gradient(90deg,#111 0,#070707 72px,#0000 190px);
+  border-radius:0 6px 6px 0;
+}
+.thinking-header {
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.thinking-chevron {
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+.thinking-block.open .thinking-chevron { transform: rotate(90deg); }
+.thinking-body {
+  display: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  word-break: break-word;
+  margin-top: 4px;
+  padding-left: 14px;
+}
+.thinking-block.open .thinking-body { display: block; }
+
+/* Turn header bar */
+.turn-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.turn-header:hover { background: var(--bg-hover); }
+.turn-header-chevron {
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+.turn.collapsed .turn-header-chevron { transform: rotate(-90deg); }
+.turn-header-label { font-weight: 600; color: var(--text); }
+.turn-header-ts { margin-left: auto; font-size: 10px; }
+.turn-body {
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.turn.collapsed .turn-body { display: none; }
+
+/* Role sections */
+.role-section {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 4px;
+}
+.role-section.role-user {
+  background: var(--bg-surface);
+  border-left: 3px solid var(--accent);
+  margin-left: 0;
+}
+.role-section.role-assistant {
+  border-left: 3px solid var(--cyan);
+  margin-left: 28px;
+  padding-left: 20px;
+}
+.role-assistant > .block-wrapper { margin:8px 0 8px 16px; padding-left:16px; border-left:1px solid #282828; }
+.role-assistant .tool-group-body { margin-left:18px; padding:8px 0 8px 24px; border-left:2px solid #404040; background:linear-gradient(90deg,#0a0a0a,#0000 110px); }
+.role-assistant .tool-block { margin:8px 0 8px 12px; }
+.role-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.role-label.role-user-label { color: var(--accent); }
+.role-label.role-assistant-label { color: var(--cyan); }
+.role-label.role-system-label { color: var(--text); font-style: italic; }
+
+/* Collapsible long content */
+.collapsible-wrap { position: relative; }
+.collapsible-wrap.is-collapsed .collapsible-content {
+  max-height: 13em;
+  overflow: hidden;
+}
+.collapsible-wrap.is-collapsed .collapsible-fade {
+  display: block;
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  height: 3em;
+  background: linear-gradient(transparent, var(--bg));
+  pointer-events: none;
+}
+.role-section.role-user .collapsible-wrap.is-collapsed .collapsible-fade {
+  background: linear-gradient(transparent, var(--bg-surface));
+}
+.collapsible-fade { display: none; }
+.collapsible-toggle {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px 0;
+  user-select: none;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+.collapsible-toggle:hover { text-decoration: underline; }
+
+/* Typing cursor */
+.cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: var(--accent);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Active block spinner — visible on the block currently waiting during playback */
+.block-spinner {
+  display: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-dim);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+.block-active .block-spinner { display: inline-block; }
+.block-active { border-left: 2px solid var(--accent); padding-left: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Mobile: larger touch targets, prevent iOS zoom */
+@media (max-width: 600px) {
+  .controls-row {
+    padding: 6px 8px;
+  }
+  .controls button {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  .filter-popover label {
+    font-size: 14px;
+    padding: 6px 0;
+  }
+  .filter-popover input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+  .controls-secondary {
+    gap: 10px;
+  }
+}
+
+/* Human-prompt peaks above the timeline */
+.turn-dot {
+  position: absolute;
+  width: 10px;
+  height: 9px;
+  background: #737373;
+  bottom: 3px;
+  transform: translateX(-50%);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.75;
+  filter: drop-shadow(0 0 2px #000);
+  transition:height .15s,width .15s,background .15s,opacity .15s;
+}
+.turn-dot.reached { opacity: 1; background: #fff; }
+.turn-dot.active { width:14px; height:13px; background:#facc15; opacity:1; }
+
+/* Bookmark dots on progress bar */
+.bookmark-dot {
+  display:none;
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.3;
+  transition: opacity 0.3s, transform 0.15s;
+}
+.bookmark-dot.reached { opacity: 0.6; }
+.bookmark-dot.active { opacity: 1; transform: translate(-50%, -50%) scale(1.4); }
+
+/* Bookmark divider in transcript */
+.bookmark-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 8px;
+  padding: 4px 0 4px 8px;
+  border-left: 3px solid var(--orange);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--orange);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.25;
+  transition: opacity 0.4s;
+}
+.bookmark-divider.visible { opacity: 1; }
+
+/* Chapter menu */
+.chapter-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.chapter-menu {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 160px;
+  max-width: 280px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.chapter-wrap.open .chapter-menu { display: block; }
+.chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.chapter-item:hover { background: var(--bg-hover); }
+.chapter-item-turn {
+  color: var(--text-dim);
+  font-size: 10px;
+  min-width: 24px;
+}
+.chapter-item-label {
+  color: var(--orange);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Splash / title screen */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: var(--bg);
+}
+.splash.hidden { display: none; }
+.splash-title {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  max-width: 600px;
+  padding: 0 24px;
+}
+.splash-play {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+  padding-left: 4px;
+}
+.splash-play:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Sub-turn animation */
+.block-hidden { display: none; }
+.block-revealing {
+  animation: blockFadeIn 0.2s ease-out;
+}
+@keyframes blockFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* File activity sidebar */
+.file-sidebar {
+  position: fixed;
+  top: 0;
+  right: max(0px, calc((100vw - 1240px) / 2));
+  width: 260px; /* overridden by JS */
+  bottom: 0; /* adjusted by JS to sit above controls */
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  z-index: 90;
+  display: none;
+  flex-direction: column;
+  font-size: 12px;
+}
+.file-sidebar.open { display: flex; }
+.file-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.file-sidebar-title { font-weight: 600; color: var(--text); }
+.file-sidebar-count { color: var(--text-dim); font-weight: 400; }
+.file-sidebar-close {
+  background: none; border: none; color: var(--text-dim);
+  font-size: 18px; cursor: pointer; padding: 0 4px;
+}
+.file-sidebar-close:hover { color: var(--text); }
+.file-sidebar-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.file-entry {
+  padding: 0;
+}
+.file-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  color: var(--text);
+  user-select: none;
+}
+.file-entry-header:hover { background: var(--bg-hover); }
+.file-entry-header.active { border-left: 2px solid var(--accent); padding-left: 10px; color: var(--accent); }
+.file-entry-chevron {
+  font-size: 8px; color: var(--text-dim); transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.file-entry.expanded .file-entry-chevron { transform: rotate(90deg); }
+.file-entry-name { flex: 1; overflow: hidden; min-width: 0; }
+.file-entry-name-main { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-entry-name-path { display: block; font-size: 9px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-entry-badge {
+  font-size: 10px; color: var(--text-dim); background: var(--bg-hover);
+  padding: 1px 5px; border-radius: 8px; flex-shrink: 0;
+}
+.file-entry-refs {
+  display: none;
+  padding: 2px 12px 6px 32px;
+}
+.file-entry.expanded .file-entry-refs { display: block; }
+.file-entry-ref {
+  display: block;
+  padding: 3px 8px;
+  margin: 1px 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 3px;
+  text-decoration: none;
+}
+.file-entry-ref:hover { background: var(--bg-hover); color: var(--text); }
+.file-entry-ref .ref-tool { color: var(--accent); }
+
+.file-sidebar-toggle { font-size: 13px; }
+.file-sidebar-toggle2 {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-dim);
+  text-decoration: none; padding: 4px 0; cursor: pointer;
+  white-space: nowrap;
+}
+.file-sidebar-toggle2:hover { color: var(--text); }
+
+.trace-mode-button { min-width:92px!important; width:auto!important; padding:4px 8px!important; color:#fff!important; font-size:9px!important; font-weight:900; letter-spacing:.5px; }
+.reader-search-open { font-size:13px!important; }
+.reader-search {
+  position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:120;
+  display:none; align-items:center; gap:6px; width:min(620px,calc(100vw - 32px));
+  padding:7px; background:#060606; border:1px solid #3f3f3f; border-radius:7px;
+  box-shadow:0 12px 42px #000;
+}
+.reader-search.open { display:flex; }
+.reader-search input { flex:1; min-width:80px; padding:7px 9px; color:#fff; background:#000; border:1px solid #444; border-radius:4px; font:12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.reader-search input:focus { outline:1px solid #fff; border-color:#fff; }
+.reader-search button { width:30px; height:30px; color:#fff; background:#111; border:1px solid #444; border-radius:4px; cursor:pointer; font-weight:900; }
+.reader-search-count { min-width:64px; color:#aaa; font-size:10px; text-align:center; }
+mark.replay-search-hit { color:#000; background:#fde047; border-radius:2px; padding:0 1px; }
+mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; outline-offset:2px; }
+.trace-focus { outline:2px solid #fff!important; outline-offset:4px; opacity:1!important; }
+.keyboard-hint { color:#777; font-size:9px; white-space:nowrap; }
+@media(max-width:760px) { .keyboard-hint,.trace-mode-button { display:none!important; } }
+
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="controls">
+    <div class="controls-row">
+      <div class="nav-group">
+        <button id="btn-prev-turn" title="Previous human prompt">&#8593;</button>
+        <button id="btn-prev" title="Previous major trace">&larr;</button>
+        <button id="btn-play" title="Play / Pause">&#9654;</button>
+        <button id="btn-next" title="Next major trace">&rarr;</button>
+        <button id="btn-next-turn" title="Next human prompt">&#8595;</button>
+        <button id="traceMode" class="trace-mode-button" title="Jump through major blocks, then file edits inside action groups">MAJOR / EDITS</button>
+        <button id="readerSearchOpen" class="reader-search-open" title="Search this session (Command F)">&#128269;</button>
+      </div>
+      <a class="bar-title" id="bar-title" title="/*PAGE_TITLE*/">/*PAGE_TITLE*/</a>
+      <span class="keyboard-hint">&#8593;&#8595; prompts&nbsp;&nbsp;&#8592;&#8594; trace</span>
+      <span class="progress-text" id="progress-text">0 of 0</span>
+      <div class="controls-secondary">
+        <div class="chapter-wrap" id="chapter-wrap" style="display:none">
+          <button id="chapter-btn" title="Chapters">&#9776;</button>
+          <div class="chapter-menu" id="chapter-menu"></div>
+        </div>
+        <div class="speed-wrap" id="speed-wrap">
+          <button id="speed-btn" title="Speed">/*INITIAL_SPEED*/x</button>
+          <div class="speed-popover" id="speed-popover"></div>
+        </div>
+        <div class="filter-wrap" id="filter-wrap">
+          <button id="filter-btn" title="Filter content"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A.5.5 0 0 1 1.5 2h13a.5.5 0 0 1 .4.8L10 8.7V13.5a.5.5 0 0 1-.7.5l-2.5-1.2a.5.5 0 0 1-.3-.5V8.7L1.1 2.8A.5.5 0 0 1 1 2.5z"/></svg></button>
+          <div class="filter-popover">
+            <label><input type="checkbox" id="toggle-thinking" /*CHECKED_THINKING*/> Thinking</label>
+            <label><input type="checkbox" id="toggle-tools" /*CHECKED_TOOLS*/> Tools</label>
+            <div class="font-size-row">
+              <span class="font-size-row-label">Font</span>
+              <button class="font-size-cycle" id="font-size-cycle" title="Cycle font size">M</button>
+            </div>
+          </div>
+        </div>
+        <button class="file-sidebar-toggle" id="fileSidebarToggle" title="Files" style="display:none"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 0A1.5 1.5 0 0 0 2 1.5v13A1.5 1.5 0 0 0 3.5 16h9a1.5 1.5 0 0 0 1.5-1.5V4.5L10 0H3.5zM10 1l3.5 3.5H10V1zM4 7h8v1H4V7zm0 2h8v1H4V9zm0 2h5v1H4v-1z"/></svg></button>
+      </div>
+      <div class="more-wrap" id="more-wrap">
+        <button id="more-btn" title="More">&#x22EE;</button>
+        <div class="more-popover" id="more-popover">
+          <a class="more-open-link" id="more-open-link" href="#" target="_blank" rel="noopener">Open in new tab &#x2197;</a>
+          <hr class="more-divider">
+          <div class="more-row">
+            <span class="more-row-label">Speed</span>
+            <button id="speed-btn2" title="Cycle speed">/*INITIAL_SPEED*/x</button>
+          </div>
+          <label class="paced-toggle2" id="paced-toggle-wrap2" style="display:none" title="Smooth out pauses — timing based on content length instead of real time"><input type="checkbox" id="toggle-paced2"> Auto-paced</label>
+          <hr class="more-divider">
+          <label><input type="checkbox" id="toggle-thinking2" /*CHECKED_THINKING*/> Thinking</label>
+          <label><input type="checkbox" id="toggle-tools2" /*CHECKED_TOOLS*/> Tools</label>
+          <hr class="more-divider">
+          <div class="more-row">
+            <span class="more-row-label">Font</span>
+            <button class="font-size-cycle" title="Cycle font size">M</button>
+          </div>
+          <div id="fileSidebarToggle2Wrap" style="display:none">
+            <hr class="more-divider">
+            <a class="file-sidebar-toggle2" id="fileSidebarToggle2" href="#"><svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 0A1.5 1.5 0 0 0 2 1.5v13A1.5 1.5 0 0 0 3.5 16h9a1.5 1.5 0 0 0 1.5-1.5V4.5L10 0H3.5zM10 1l3.5 3.5H10V1zM4 7h8v1H4V7zm0 2h8v1H4V9zm0 2h5v1H4v-1z"/></svg> Files</a>
+          </div>
+          <div id="more-chapters" style="display:none">
+            <hr class="more-divider">
+            <div id="more-chapter-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="progress-tooltip" id="progress-tooltip"></div>
+      </div>
+    </div>
+  </div>
+  <div id="splash" class="splash">
+    <div class="splash-title">/*PAGE_TITLE*/</div>
+    <button class="splash-play" id="splash-play">&#9654;</button>
+  </div>
+  <aside class="activity-legend" id="activityLegend">
+    <div class="activity-legend-header" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span>ACTIVITY</span><span class="activity-legend-toggle">hide / show</span>
+    </div>
+    <div class="activity-legend-body">
+      <div class="activity-legend-row legend-code-edit" data-legend="code-edit"><span class="activity-legend-dot"></span><span>Code edit</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-md-edit" data-legend="md-edit"><span class="activity-legend-dot"></span><span>MD file edit</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-search" data-legend="search"><span class="activity-legend-dot"></span><span>Search</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-launch" data-legend="launch"><span class="activity-legend-dot"></span><span>Launch</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-test" data-legend="test"><span class="activity-legend-dot"></span><span>Test</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-build" data-legend="build"><span class="activity-legend-dot"></span><span>Build</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-git" data-legend="git"><span class="activity-legend-dot"></span><span>Git</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-read" data-legend="read"><span class="activity-legend-dot"></span><span>File read</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-wait" data-legend="wait"><span class="activity-legend-dot"></span><span>Wait</span><span class="activity-legend-count">0</span></div>
+      <div class="activity-legend-row legend-command" data-legend="command"><span class="activity-legend-dot"></span><span>Command and computer</span><span class="activity-legend-count">0</span></div>
+    </div>
+  </aside>
+  <aside class="replay-notes collapsed" id="replayNotes">
+    <div class="replay-notes-header" id="replayNotesHeader">
+      <span>NOTES</span><span id="replayNotesToggle">collapse</span>
+    </div>
+    <div class="replay-notes-body">
+      <textarea id="replayNotesText" placeholder="Leave yourself a note for this session..."></textarea>
+      <div class="replay-note-actions">
+        <button id="replayMarkPlace">MARK MY PLACE</button>
+        <button id="replayGoToMark">GO TO MARK</button>
+      </div>
+      <div class="replay-marker-status" id="replayMarkerStatus">No saved marker yet</div>
+    </div>
+  </aside>
+  <button class="replay-export" id="replayExportZip">EXPORT ZIP</button>
+  <div class="reader-search" id="readerSearch">
+    <input id="readerSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="Search this whole session">
+    <span class="reader-search-count" id="readerSearchCount">0 results</span>
+    <button id="readerSearchPrev" title="Previous match">&#8593;</button>
+    <button id="readerSearchNext" title="Next match">&#8595;</button>
+    <button id="readerSearchClose" title="Close search">&#10005;</button>
+  </div>
+  <div class="transcript" id="transcript" style="opacity:0.5">Loading...</div>
+  <div class="file-sidebar" id="fileSidebar">
+  <div class="file-sidebar-header">
+    <span class="file-sidebar-title">Files <span class="file-sidebar-count" id="fileSidebarCount"></span></span>
+    <button class="file-sidebar-close" id="fileSidebarClose">&times;</button>
+  </div>
+  <div class="file-sidebar-list" id="fileSidebarList"></div>
+</div>
+</div>
+
+<script>
+(async function() {
+  "use strict";
+
+  // ═══════════════════════════════════════════
+  // § CONFIG & CONSTANTS
+  // ═══════════════════════════════════════════
+
+  // Decode embedded data: deflate+base64 (compressed) or raw JSON string.
+  // Uses browser-native DecompressionStream — Node deflateSync ↔ browser DecompressionStream("deflate").
+  async function decodeData(raw) {
+    // Raw JSON (from --no-compress): starts with [ or {
+    if (raw.startsWith("[") || raw.startsWith("{")) return JSON.parse(raw);
+    // Compressed base64 — requires DecompressionStream
+    if (typeof DecompressionStream === "undefined") {
+      document.getElementById("transcript").textContent =
+        "This replay uses compressed data, but your browser does not support DecompressionStream. " +
+        "Please use a modern browser (Chrome 80+, Firefox 113+, Safari 16.4+), " +
+        "or rebuild with --no-compress.";
+      throw new Error("DecompressionStream not supported");
+    }
+    const bytes = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+    const ds = new DecompressionStream("deflate");
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    return JSON.parse(await new Response(ds.readable).text());
+  }
+
+  const TURNS = await decodeData("/*TURNS_DATA*/");
+  const BOOKMARKS = await decodeData("/*BOOKMARKS_DATA*/");
+  const FILES = await decodeData("/*FILES_DATA*/");
+
+  const SPEED_STEPS = [0.5, 1, 2, 3, 5];
+  const PEEK_OFFSET = 20;              // px of next dimmed turn visible below
+  const TURN_SCROLL_MS = 600;          // duration of scroll between turns
+  const pacedWordingRequested = /*PACED_WORDING*/false;
+  const readingWpm = /*READING_WPM*/0;
+  const pacedWordingTuning = Object.freeze(/*PACED_WORDING_TUNING*/{});
+  const {
+    segmentGapMinMs: ANIMATE_MIN_DELAY,
+    segmentGapFallbackMs: ANIMATE_FALLBACK_DELAY,
+    segmentGapMaxMs: ANIMATE_MAX_DELAY,
+    turnDwellMs: SHORT_TURN_DELAY_MS,
+    wordLengthBaseFactor: WORD_LENGTH_BASE_FACTOR,
+    wordLengthPerCharFactor: WORD_LENGTH_PER_CHAR_FACTOR,
+    wordLengthMaxChars: WORD_LENGTH_MAX_CHARS,
+    wordJitterMin: WORD_JITTER_MIN,
+    wordJitterBuckets: WORD_JITTER_BUCKETS,
+    wordJitterDivisor: WORD_JITTER_DIVISOR,
+    clausePauseWords: CLAUSE_PAUSE_WORDS,
+    sentencePauseWords: SENTENCE_PAUSE_WORDS,
+    structuralPauseWords: PARAGRAPH_PAUSE_WORDS,
+  } = pacedWordingTuning;
+  const pacedWording = pacedWordingRequested && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Compute session timestamps for elapsed/total timer
+  const hasRealTimestamps = /*HAS_REAL_TIMESTAMPS*/false;
+  let usePaced = false;
+
+  function groupTurnSegments(blocks) {
+    const segments = [];
+    let toolRun = [];
+    for (const block of blocks || []) {
+      if (block.kind === "tool_use" && block.tool_call) {
+        toolRun.push(block);
+      } else {
+        if (toolRun.length > 0) {
+          segments.push({ type: "tools", blocks: toolRun });
+          toolRun = [];
+        }
+        segments.push({ type: "single", block });
+      }
+    }
+    if (toolRun.length > 0) segments.push({ type: "tools", blocks: toolRun });
+    return segments;
+  }
+
+  function segmentTimestamp(segment) {
+    if (segment.type === "single") return segment.block.timestamp || null;
+    return segment.blocks[0]?.timestamp || null;
+  }
+
+  function computeSegmentGaps(segments, limit = segments.length) {
+    const gaps = [0];
+    for (let i = 1; i < segments.length && i < limit; i++) {
+      const timestamp = segmentTimestamp(segments[i]);
+      const previousTimestamp = segmentTimestamp(segments[i - 1]);
+      const rawGap = timestamp && previousTimestamp
+        ? new Date(timestamp).getTime() - new Date(previousTimestamp).getTime()
+        : ANIMATE_FALLBACK_DELAY;
+      gaps.push(Math.min(Math.max(rawGap, ANIMATE_MIN_DELAY), ANIMATE_MAX_DELAY));
+    }
+    return gaps;
+  }
+
+  function computeRealTiming() {
+    const start = TURNS.length > 0 && TURNS[0].timestamp
+      ? new Date(TURNS[0].timestamp).getTime() : null;
+    const starts = TURNS.map((t) => t.timestamp ? new Date(t.timestamp).getTime() : 0);
+    const ends = TURNS.map((t) => {
+      let latest = t.timestamp ? new Date(t.timestamp).getTime() : 0;
+      for (const b of t.blocks || []) {
+        if (b.timestamp) latest = Math.max(latest, new Date(b.timestamp).getTime());
+        if (b.tool_call?.resultTimestamp) latest = Math.max(latest, new Date(b.tool_call.resultTimestamp).getTime());
+      }
+      return latest;
+    });
+    const total = start != null && ends.length ? ends[ends.length - 1] - start : 0;
+    return { start, starts, ends, total };
+  }
+
+  function computePacedTiming() {
+    let cursor = 0;
+    const starts = [];
+    const ends = [];
+    for (const turn of TURNS) {
+      starts.push(cursor);
+      cursor += 500; // pause before assistant responds
+      for (const b of turn.blocks || []) {
+        const len = (b.text || "").length;
+        cursor += Math.min(Math.max(len * 30, 1000), 10000);
+      }
+      ends.push(cursor);
+    }
+    return { start: 0, starts, ends, total: cursor };
+  }
+
+  const realTiming = computeRealTiming();
+  const pacedTiming = computePacedTiming();
+  let pacedWordingTiming = null;
+  let sessionStart = realTiming.start;
+  let turnStartTimes = realTiming.starts;
+  let turnEndTimes = realTiming.ends;
+  let sessionTotalMs = realTiming.total;
+
+  function switchTiming(paced) {
+    usePaced = pacedWordingTiming ? true : paced;
+    const t = pacedWordingTiming || (paced ? pacedTiming : realTiming);
+    sessionStart = t.start;
+    turnStartTimes = t.starts;
+    turnEndTimes = t.ends;
+    sessionTotalMs = t.total;
+    displayedTimeMs = 0;
+    updateTimerDisplay();
+    syncTimerToBlock();
+    updateProgress();
+  }
+
+  function formatTime(ms) {
+    if (ms <= 0) return "0:00";
+    const totalSec = Math.round(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    return m + ":" + String(s).padStart(2, "0");
+  }
+
+  // Build a map of turn index → bookmark label for quick lookup
+  const bookmarkMap = new Map();
+  for (const bm of BOOKMARKS) bookmarkMap.set(bm.turn, bm.label);
+
+  // ═══════════════════════════════════════════
+  // § DOM REFS
+  // ═══════════════════════════════════════════
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  const transcript = $("#transcript");
+  const btnPlay = $("#btn-play");
+  const btnPrev = $("#btn-prev");
+  const btnNext = $("#btn-next");
+  const btnPrevTurn = $("#btn-prev-turn");
+  const btnNextTurn = $("#btn-next-turn");
+  const progressFill = $("#progress-fill");
+  const progressText = $("#progress-text");
+  const progressBar = $("#progress-bar");
+  const progressTooltip = $("#progress-tooltip");
+  const speedBtn = $("#speed-btn");
+  const speedBtn2 = $("#speed-btn2");
+  const speedWrap = $("#speed-wrap");
+  const speedPopover = $("#speed-popover");
+  const filterWrap = $("#filter-wrap");
+  const filterBtn = $("#filter-btn");
+  const toggleThinking = $("#toggle-thinking");
+  const toggleTools = $("#toggle-tools");
+  let togglePaced = $("#toggle-paced");
+  const toggleThinking2 = $("#toggle-thinking2");
+  const toggleTools2 = $("#toggle-tools2");
+  const togglePaced2 = $("#toggle-paced2");
+  const moreWrap = $("#more-wrap");
+  const moreBtn = $("#more-btn");
+  const chapterWrap = $("#chapter-wrap");
+  const chapterBtn = $("#chapter-btn");
+  const chapterMenu = $("#chapter-menu");
+  const barTitle = $("#bar-title");
+  const controlsEl = $(".controls");
+  const splash = $("#splash");
+
+  // ═══════════════════════════════════════════
+  // § STATE
+  // ═══════════════════════════════════════════
+
+  let currentTurn = 0;
+  let playing = false;
+  let playTimer = null;
+  let speed = /*INITIAL_SPEED*/1;
+  let animateCancelFn = null;
+  let animatePausedState = null; // { turnIndex, blockIdx } when paused mid-turn
+  let scrollProtectUntil = 0;    // timestamp — suppress scroll tracking after programmatic scrolls
+  let scrollAnim = null;
+  let scrollTick = false;
+  let timerInterval = null;
+  let displayedTimeMs = 0;  // session elapsed time shown in timer
+
+  // ═══════════════════════════════════════════
+  // § UTILITIES
+  // ═══════════════════════════════════════════
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function renderMarkdown(text) {
+    if (!text) return "";
+    // Extract fenced code blocks first so markdown inside them is untouched
+    const codeBlocks = [];
+    let src = text.replace(/```([^\n]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+      const idx = codeBlocks.length;
+      codeBlocks.push(`<pre><code${lang ? ` class="language-${escapeHtml(lang)}"` : ""}>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
+      return `\x00CB${idx}\x00`;
+    });
+    // Process line by line
+    const lines = src.split("\n");
+    let out = "";
+    let inList = null; // "ul" | "ol" | null
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+      // Code block placeholder — emit directly
+      const cbMatch = line.match(/^\x00CB(\d+)\x00$/);
+      if (cbMatch) {
+        if (inList) { out += `</${inList}>`; inList = null; }
+        out += codeBlocks[parseInt(cbMatch[1])];
+        continue;
+      }
+      // Horizontal rule
+      if (/^---+$/.test(line.trim())) {
+        if (inList) { out += `</${inList}>`; inList = null; }
+        out += "<hr>";
+        continue;
+      }
+      // Headers (# through ####)
+      const hMatch = line.match(/^(#{1,4})\s+(.+)$/);
+      if (hMatch) {
+        if (inList) { out += `</${inList}>`; inList = null; }
+        const level = Math.min(hMatch[1].length + 2, 6); // #→h3, ##→h4, ###→h5, ####→h6
+        out += `<h${level}>${inlineMarkdown(escapeHtml(hMatch[2]))}</h${level}>`;
+        continue;
+      }
+      // Unordered list
+      const ulMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
+      if (ulMatch) {
+        if (inList !== "ul") { if (inList) out += `</${inList}>`; out += "<ul>"; inList = "ul"; }
+        out += `<li>${inlineMarkdown(escapeHtml(ulMatch[2]))}</li>`;
+        continue;
+      }
+      // Ordered list
+      const olMatch = line.match(/^(\s*)\d+\.\s+(.+)$/);
+      if (olMatch) {
+        if (inList !== "ol") { if (inList) out += `</${inList}>`; out += "<ol>"; inList = "ol"; }
+        out += `<li>${inlineMarkdown(escapeHtml(olMatch[2]))}</li>`;
+        continue;
+      }
+      // Close any open list
+      if (inList && line.trim() === "") { out += `</${inList}>`; inList = null; }
+      // Table: detect header row followed by separator row
+      if (line.trim().startsWith("|") && i + 1 < lines.length && /^\|[\s:-]+\|/.test(lines[i + 1].trim())) {
+        if (inList) { out += `</${inList}>`; inList = null; }
+        const parseRow = (r) => r.replace(/^\||\|$/g, "").split("|").map(c => inlineMarkdown(escapeHtml(c.trim())));
+        const headers = parseRow(line);
+        i++; // skip separator row
+        let rows = [];
+        while (i + 1 < lines.length && lines[i + 1].trim().startsWith("|")) {
+          i++;
+          rows.push(parseRow(lines[i]));
+        }
+        out += "<table><thead><tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr></thead>";
+        if (rows.length) {
+          out += "<tbody>" + rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("") + "</tbody>";
+        }
+        out += "</table>";
+        continue;
+      }
+      // Regular text — wrap non-empty lines in <p>, blank lines as breaks
+      if (line.trim() === "") {
+        if (out.length > 0) out += "\n";
+      } else {
+        out += `<p>${inlineMarkdown(escapeHtml(line))}</p>`;
+      }
+    }
+    if (inList) out += `</${inList}>`;
+    return out;
+  }
+
+  function inlineMarkdown(html) {
+    // Inline code (backticks) — process first so content inside is protected
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic (single * not preceded/followed by space — avoid false positives on bullet lists)
+    html = html.replace(/(?<!\w)\*([^*]+?)\*(?!\w)/g, '<em>$1</em>');
+    // Links
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    return html;
+  }
+
+  function wrapPacedWords(root) {
+    for (const pre of root.querySelectorAll("pre")) {
+      pre.classList.add("paced-code-block", "paced-segment");
+    }
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) {
+      const textNode = walker.currentNode;
+      if (textNode.parentElement?.closest("pre")) continue;
+      if (/\S/.test(textNode.nodeValue || "")) textNodes.push(textNode);
+    }
+    for (const textNode of textNodes) {
+      const fragment = document.createDocumentFragment();
+      for (const part of textNode.nodeValue.split(/(\s+)/)) {
+        if (!part) continue;
+        if (/^\s+$/.test(part)) {
+          fragment.appendChild(document.createTextNode(part));
+        } else {
+          const word = document.createElement("span");
+          word.className = "paced-word paced-segment";
+          word.textContent = part;
+          fragment.appendChild(word);
+        }
+      }
+      textNode.replaceWith(fragment);
+    }
+  }
+
+  function preparePacedWording() {
+    for (const root of $$(".user-text, .assistant-text")) wrapPacedWords(root);
+  }
+
+  function truncate(text, max) {
+    if (!text) return "";
+    const s = typeof text === "string" ? text : JSON.stringify(text);
+    const oneLine = s.replace(/\n/g, " ").trim();
+    return oneLine.length > max ? oneLine.slice(0, max) + "..." : oneLine;
+  }
+
+  function formatInput(input) {
+    if (typeof input === "string") return escapeHtml(input);
+    try {
+      return escapeHtml(JSON.stringify(input, null, 2));
+    } catch {
+      return escapeHtml(String(input));
+    }
+  }
+
+  function toolFilePaths(tc) {
+    const input = tc.input || {};
+    if (Array.isArray(input.file_paths) && input.file_paths.length) return input.file_paths.filter(Boolean);
+    return input.file_path ? [input.file_path] : [];
+  }
+
+  function isMarkdownPath(path) {
+    return /\.(md|mdx)$/i.test(path || "");
+  }
+
+  function classifyShellCommand(command) {
+    command = String(command || "").trim();
+    if (/(^|[\s;&|])(open|xdg-open)(\s|$)|GodotKarcerus|electron\s+\.|--serve|npm\s+run\s+(dev|start)/i.test(command)) return { kind: "launch", label: "LAUNCH", autoOpen: false };
+    if (/(^|[\s;&|])(cargo\s+test|rustc\b.*--test|pytest|npm\s+test|pnpm\s+test|yarn\s+test|check_changed_gd|parse_check|run_scenario_battery|test)(\s|$)/i.test(command)) return { kind: "test", label: "TEST", autoOpen: false };
+    if (/(^|[\s;&|])(cargo\s+build|npm\s+run\s+build|pnpm\s+build|make|cmake)(\s|$)/i.test(command)) return { kind: "build", label: "BUILD", autoOpen: false };
+    if (/(^|[\s;&|])(git)(\s|$)/.test(command)) return { kind: "git", label: "GIT", autoOpen: false };
+    if (/(^|[\s;&|])(rg|grep|find|fd|locate)(\s|$)/.test(command)) return { kind: "search", label: "SEARCH", autoOpen: false };
+    if (/(^|[\s;&|])(sed|cat|head|tail|less|bat)(\s|$)/.test(command)) return { kind: "read", label: "FILE READ", autoOpen: false };
+    return { kind: "command", label: "COMMAND", autoOpen: false };
+  }
+
+  function classifyTool(tc) {
+    const name = tc.name || "";
+    const paths = toolFilePaths(tc);
+    if (name === "Edit" || name === "Write" || name === "MultiEdit" || name === "NotebookEdit") {
+      const markdownOnly = paths.length > 0 && paths.every(isMarkdownPath);
+      return markdownOnly
+        ? { kind: "md-edit", label: "MD FILE", autoOpen: false }
+        : { kind: "code-edit", label: "CODE EDIT", autoOpen: true };
+    }
+    if (name === "Read") return { kind: "read", label: "FILE READ", autoOpen: false };
+    if (name === "Grep" || name === "Glob") return { kind: "search", label: "SEARCH", autoOpen: false };
+    if (name === "Bash") {
+      const input = tc.input || {};
+      const commands = Array.isArray(input.commands) ? input.commands : [input.command || ""];
+      const activities = commands.filter(Boolean).map(classifyShellCommand);
+      if (activities.length && activities.every((item) => item.kind === activities[0].kind)) return activities[0];
+      if (activities.length > 1) return { kind: "command", label: "COMMANDS", autoOpen: false };
+      return classifyShellCommand(input.command || "");
+    }
+    if (name === "Wait") return { kind: "wait", label: "WAIT", autoOpen: false };
+    if (name === "Process") return { kind: "command", label: "PROCESS", autoOpen: false };
+    if (name === "Command") return { kind: "command", label: "ACTION", autoOpen: false };
+    if (name === "js" || /cua|computer/i.test(name)) return { kind: "command", label: "COMPUTER", autoOpen: false };
+    if (/web|search_query/i.test(name)) return { kind: "search", label: "WEB", autoOpen: false };
+    if (/view_image|imagegen/i.test(name)) return { kind: "read", label: "IMAGE", autoOpen: false };
+    return { kind: "other", label: "OTHER", autoOpen: false };
+  }
+
+  function renderFileBanners(tc) {
+    const paths = toolFilePaths(tc);
+    if (!paths.length) return "";
+    return paths.map((path) => {
+      const normalized = String(path);
+      const name = normalized.split(/[\\/]/).pop() || normalized;
+      return `<div class="diff-file"><span class="diff-file-name">${escapeHtml(name)}</span><span class="diff-file-path">${escapeHtml(normalized)}</span></div>`;
+    }).join("");
+  }
+
+  function toolPreview(tc) {
+    const name = tc.name || "";
+    const input = tc.input || {};
+    if (name === "Edit" || name === "Write" || name === "Read") {
+      return input.file_path || "";
+    }
+    if (name === "Grep" || name === "Glob") {
+      const p = input.pattern || "";
+      return input.path ? p + " in " + input.path : p;
+    }
+    if (name === "Bash") {
+      const commands = Array.isArray(input.commands) ? input.commands : [];
+      if (commands.length > 1) return truncate(commands[0], 105) + `  (+${commands.length - 1} more)`;
+      return input.command || "";
+    }
+    if (name === "Wait" || name === "Process" || name === "Command") return input.action || "";
+    return truncate(input, 60);
+  }
+
+  function formatToolBody(tc) {
+    const name = tc.name || "";
+    const input = tc.input || {};
+
+    if (name === "Bash" && Array.isArray(input.commands) && input.commands.length) {
+      let html = '<div class="command-list">';
+      input.commands.forEach((command, index) => {
+        html += `<div class="command-card"><div class="command-card-label">COMMAND ${index + 1}</div><pre>${escapeHtml(command)}</pre></div>`;
+      });
+      html += "</div>";
+      if (tc.result != null) {
+        const errCls = tc.is_error ? " tool-result-error" : "";
+        html += `<div class="tool-result${errCls}" data-type="result"><div class="tool-result-label">RESULT</div>${escapeHtml(tc.result)}</div>`;
+      }
+      return html;
+    }
+
+    if (name === "Edit" && input.old_string != null && input.new_string != null) {
+      const oldLines = String(input.old_string).split("\n");
+      const newLines = String(input.new_string).split("\n");
+      let diffHtml = `<div class="diff-view">${renderFileBanners(tc)}${input.replace_all ? '<div class="diff-result">Replace all</div>' : ''}`;
+      const m = oldLines.length, n = newLines.length;
+      // Fall back to simple before/after for very large diffs
+      if (m * n > 50000) {
+        for (const l of oldLines) diffHtml += `<div class="diff-line-del">${escapeHtml("\u2212 " + l)}</div>`;
+        for (const l of newLines) diffHtml += `<div class="diff-line-add">${escapeHtml("+ " + l)}</div>`;
+        diffHtml += "</div>";
+        if (tc.result != null) {
+          const errCls = tc.is_error ? " diff-result-error" : "";
+          diffHtml += `<div class="diff-result${errCls}">${escapeHtml(tc.result)}</div>`;
+        }
+        return diffHtml;
+      }
+      // LCS diff
+      const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+      for (let i = m - 1; i >= 0; i--) {
+        for (let j = n - 1; j >= 0; j--) {
+          dp[i][j] = oldLines[i] === newLines[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        }
+      }
+      let i = 0, j = 0;
+      while (i < m || j < n) {
+        if (i < m && j < n && oldLines[i] === newLines[j]) {
+          diffHtml += `<div class="diff-line-ctx">${escapeHtml("  " + oldLines[i])}</div>`;
+          i++; j++;
+        } else if (j < n && (i >= m || dp[i][j + 1] >= dp[i + 1][j])) {
+          diffHtml += `<div class="diff-line-add">${escapeHtml("+ " + newLines[j])}</div>`;
+          j++;
+        } else {
+          diffHtml += `<div class="diff-line-del">${escapeHtml("\u2212 " + oldLines[i])}</div>`;
+          i++;
+        }
+      }
+      diffHtml += "</div>";
+      if (tc.result != null) {
+        const errCls = tc.is_error ? " diff-result-error" : "";
+        diffHtml += `<div class="diff-result${errCls}">${escapeHtml(tc.result)}</div>`;
+      }
+      return diffHtml;
+    }
+
+    if (name === "Write" && input.content != null) {
+      let html = `<div class="diff-view">${renderFileBanners(tc)}<pre style="margin:0;background:none;border:none;padding:0;overflow:visible;"><code>${escapeHtml(input.content)}</code></pre></div>`;
+      if (tc.result != null) {
+        const errCls = tc.is_error ? " diff-result-error" : "";
+        html += `<div class="diff-result${errCls}">${escapeHtml(tc.result)}</div>`;
+      }
+      return html;
+    }
+
+    // Default: generic input + result
+    let bodyHtml = `<div class="tool-input"><div class="tool-input-label">Input</div>${formatInput(input)}</div>`;
+    if (tc.result != null) {
+      const errCls = tc.is_error ? " tool-result-error" : "";
+      bodyHtml += `<div class="tool-result${errCls}" data-type="result"><div class="tool-result-label">Result</div>${escapeHtml(tc.result)}</div>`;
+    }
+    return bodyHtml;
+  }
+
+  function countLines(text) {
+    if (!text) return 0;
+    return text.split("\n").length;
+  }
+
+  function wrapCollapsible(contentHtml, totalLines, threshold) {
+    if (totalLines <= threshold) return contentHtml;
+    return `<div class="collapsible-wrap is-collapsed">
+      <div class="collapsible-content">${contentHtml}</div>
+      <div class="collapsible-fade"></div>
+      <button class="collapsible-toggle" onclick="toggleCollapsible(this)">Show more (${totalLines} lines)</button>
+    </div>`;
+  }
+
+  // Exposed globally for onclick
+  window.toggleCollapsible = function(btn) {
+    const wrap = btn.closest(".collapsible-wrap");
+    const collapsed = wrap.classList.toggle("is-collapsed");
+    const totalLines = wrap.querySelector(".collapsible-content").textContent.split("\n").length;
+    btn.textContent = collapsed ? `Show more (${totalLines} lines)` : "Show less";
+  };
+
+
+  function formatUtcTime(d) {
+    return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+  }
+
+  function getControlsHeight() { return controlsEl.offsetHeight; }
+
+  function collapseExpanded(el) {
+    for (const o of el.querySelectorAll(".open")) o.classList.remove("open");
+  }
+
+  // Splash screen helpers
+  function showSplash() { splash.classList.remove("hidden"); }
+  function hideSplash() { splash.classList.add("hidden"); }
+  function isSplashVisible() { return !splash.classList.contains("hidden"); }
+
+  // Progress bar math: map between 1-based turn numbers and 0-1 percentages
+  function turnToPct(turn) {
+    return TURNS.length > 1 ? (turn - 1) / (TURNS.length - 1) : (turn ? 1 : 0);
+  }
+  function pctToTurn(pct) {
+    return Math.min(TURNS.length, Math.round(pct * (TURNS.length - 1)) + 1);
+  }
+
+  // Get only .turn elements (excludes bookmark dividers)
+  function turnElements() { return transcript.querySelectorAll(".turn"); }
+
+  // ═══════════════════════════════════════════
+  // § BLOCK REVEAL HELPERS
+  // ═══════════════════════════════════════════
+
+  function revealAllBlocks(turnEl) {
+    for (const w of turnEl.querySelectorAll(".block-wrapper.block-hidden")) {
+      w.classList.remove("block-hidden");
+    }
+    for (const thinking of turnEl.querySelectorAll(".thinking-block")) thinking.classList.add("open");
+    lightAllWords(turnEl);
+  }
+
+  function hideAllBlocks(turnEl) {
+    for (const w of turnEl.querySelectorAll(".block-wrapper")) {
+      w.classList.add("block-hidden");
+      w.classList.remove("block-revealing", "block-active");
+    }
+    dimAllWords(turnEl);
+  }
+
+  function lightAllWords(root) {
+    if (!pacedWording) return;
+    for (const word of root.querySelectorAll(".paced-segment")) word.classList.add("word-lit");
+  }
+
+  function dimAllWords(root) {
+    if (!pacedWording) return;
+    for (const word of root.querySelectorAll(".paced-segment")) word.classList.remove("word-lit");
+  }
+
+  function reconcilePacedWordsToBlockState(turnEl) {
+    if (!pacedWording || !turnEl) return;
+    lightAllWords(turnEl.querySelector(".user-text") || turnEl);
+    for (const wrapper of turnEl.querySelectorAll(".block-wrapper")) {
+      if (wrapper.classList.contains("block-hidden")) dimAllWords(wrapper);
+      else lightAllWords(wrapper);
+    }
+  }
+
+  function updateBookmarkVisibility() {
+    for (const div of transcript.querySelectorAll(".bookmark-divider")) {
+      const t = parseInt(div.dataset.turn, 10);
+      div.classList.toggle("visible", t <= currentTurn);
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // § SPEED MANAGEMENT
+  // ═══════════════════════════════════════════
+
+  function updateSpeedLabel() {
+    speedBtn.textContent = speed + "x";
+    speedBtn2.textContent = speed + "x";
+    for (const btn of speedPopover.querySelectorAll("button")) {
+      btn.classList.toggle("active", parseFloat(btn.dataset.speed) === speed);
+    }
+  }
+
+  function setSpeed(newSpeed) {
+    speed = newSpeed;
+    updateSpeedLabel();
+  }
+
+  // ═══════════════════════════════════════════
+  // § RENDERING
+  // ═══════════════════════════════════════════
+
+  function renderTurn(turn, displayNum) {
+    const el = document.createElement("div");
+    el.className = "turn";
+    el.dataset.index = turn.index;
+
+    let html = "";
+
+    // Turn header bar
+    let relStr = "";
+    let absStr = "";
+    if (turn.timestamp) {
+      const d = new Date(turn.timestamp);
+      absStr = formatUtcTime(d);
+      if (sessionStart != null) {
+        const delta = d.getTime() - sessionStart;
+        relStr = formatTime(delta);
+      }
+    }
+    const tsHtml = relStr || absStr
+      ? `<span class="turn-header-ts" ${absStr ? `title="${absStr}"` : ""}>${relStr || absStr}</span>`
+      : "";
+    const label = displayNum != null ? displayNum : turn.index;
+    html += `<div class="turn-header" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="turn-header-chevron">&#9660;</span>
+      <span class="turn-header-label">#${label}</span>
+      ${tsHtml}
+    </div>`;
+
+    html += `<div class="turn-body">`;
+
+    // User message
+    if (turn.user_text) {
+      const userContent = `<div class="user-text">${renderMarkdown(turn.user_text)}</div>`;
+      html += `<div class="role-section role-user">
+        <div class="role-label role-user-label">/*USER_LABEL*/</div>
+        ${userContent}
+      </div>`;
+    }
+
+    // System events (background task notifications)
+    if (turn.system_events && turn.system_events.length) {
+      html += `<div class="role-section role-system">`;
+      html += `<div class="role-label role-system-label">System</div>`;
+      for (const ev of turn.system_events) {
+        html += `<div class="bg-task-badge">${escapeHtml(ev)}</div>`;
+      }
+      html += `</div>`;
+    }
+
+    // Assistant blocks
+    if (turn.blocks.length > 0) {
+      html += `<div class="role-section role-assistant">`;
+      html += `<div class="role-label role-assistant-label">/*ASSISTANT_LABEL*/</div>`;
+
+      // Group consecutive tool_use blocks into runs
+      const segments = [];
+      let toolRun = [];
+      let blockIdx = 0;
+      for (const block of turn.blocks) {
+        if (block.kind === "tool_use" && block.tool_call) {
+          toolRun.push(block);
+        } else {
+          if (toolRun.length > 0) { segments.push({ type: "tools", blocks: toolRun, blockIdx: blockIdx++ }); toolRun = []; }
+          segments.push({ type: "single", block, blockIdx: blockIdx++ });
+        }
+      }
+      if (toolRun.length > 0) { segments.push({ type: "tools", blocks: toolRun, blockIdx: blockIdx++ }); }
+
+      for (const seg of segments) {
+        const hiddenCls = " block-hidden";
+        if (seg.type === "single") {
+          const block = seg.block;
+          if (block.kind === "text") {
+            const lines = countLines(block.text);
+            const textContent = `<div class="assistant-text">${renderMarkdown(block.text)}</div>`;
+            html += `<div class="block-wrapper${hiddenCls}" data-block-idx="${seg.blockIdx}">${wrapCollapsible(textContent, lines, 15)}</div>`;
+          } else if (block.kind === "thinking") {
+            html += `<div class="block-wrapper${hiddenCls}" data-block-idx="${seg.blockIdx}"><div class="thinking-block open" data-type="thinking">
+              <div class="thinking-header" onclick="this.parentElement.classList.toggle('open')">
+                <span class="thinking-chevron">&#9654;</span> Thinking <span class="block-spinner"></span>
+              </div>
+              <div class="thinking-body">${renderMarkdown(block.text)}</div>
+            </div></div>`;
+          }
+        } else {
+          // Consecutive tool calls
+          const toolHtml = seg.blocks.map((block, toolIndex) => {
+            const tc = block.tool_call;
+            const preview = toolPreview(tc);
+            const bodyHtml = formatToolBody(tc);
+            const activity = classifyTool(tc);
+            const toolKey = tc.tool_use_id || `${turn.index}:${seg.blockIdx}:${toolIndex}:${tc.name}`;
+            return `<div class="tool-block activity-${activity.kind}" data-type="tool" data-activity="${activity.kind}" data-tool-key="${escapeHtml(toolKey)}">
+              <div class="tool-header" onclick="this.parentElement.classList.toggle('open')">
+                <span class="tool-indicator${tc.is_error ? " tool-error" : ""}"></span>
+                <span class="activity-badge">${activity.label}</span>
+                <span class="tool-name">${escapeHtml(tc.name)}</span>
+                <span class="tool-args-preview">${escapeHtml(preview)}</span>
+                <span class="block-spinner"></span>
+                <span class="tool-chevron">&#9654;</span>
+              </div>
+              <div class="tool-body">${bodyHtml}</div>
+            </div>`;
+          }).join("");
+
+          const names = seg.blocks.map(b => b.tool_call.name);
+          const uniqueNames = [...new Set(names)].join(", ");
+          const hasError = seg.blocks.some(b => b.tool_call.is_error);
+          html += `<div class="block-wrapper${hiddenCls}" data-block-idx="${seg.blockIdx}"><div class="tool-group" data-type="tool" data-group-key="${escapeHtml(`${turn.index}:${seg.blockIdx}`)}">
+            <div class="tool-group-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="tool-group-chevron">&#9654;</span>
+              ${hasError ? '<span class="tool-indicator tool-error" style="display:inline-block;margin-right:4px;"></span>' : ''}<span class="activity-badge">ACTIONS</span>${seg.blocks.length} action${seg.blocks.length === 1 ? "" : "s"}
+              <span class="tool-group-names">${escapeHtml(uniqueNames)}</span>
+              <span class="block-spinner"></span>
+            </div>
+            <div class="tool-group-body">${toolHtml}</div>
+          </div></div>`;
+        }
+      }
+
+      html += `</div>`; // close role-assistant
+    }
+
+    html += `</div>`; // close turn-body
+
+    el.innerHTML = html;
+    return el;
+  }
+
+  function renderAllTurns() {
+    for (let i = 0; i < TURNS.length; i++) {
+      const turn = TURNS[i];
+      const bmLabel = bookmarkMap.get(turn.index);
+      if (bmLabel) {
+        const divider = document.createElement("div");
+        divider.className = "bookmark-divider";
+        divider.dataset.turn = turn.index;
+        divider.textContent = bmLabel;
+        transcript.appendChild(divider);
+      }
+      const el = renderTurn(turn, i + 1);
+      transcript.appendChild(el);
+    }
+    for (const row of document.querySelectorAll("[data-legend]")) {
+      const kind = row.dataset.legend;
+      const count = document.querySelectorAll(`.tool-block[data-activity="${kind}"]`).length;
+      const counter = row.querySelector(".activity-legend-count");
+      if (counter) counter.textContent = String(count);
+    }
+  }
+
+  function applyVisibility() {
+    const showThinking = toggleThinking.checked;
+    const showTools = toggleTools.checked;
+
+    for (const el of $$('[data-type="thinking"]')) {
+      el.style.display = showThinking ? "" : "none";
+    }
+    for (const el of $$('[data-type="tool"]')) {
+      el.style.display = showTools ? "" : "none";
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // § PLAYER ENGINE
+  // ═══════════════════════════════════════════
+
+  function cancelScrollAnim() {
+    if (scrollAnim) { cancelAnimationFrame(scrollAnim); scrollAnim = null; }
+  }
+
+  function smoothScrollTo(targetY, duration, callback) {
+    cancelScrollAnim();
+    const startY = window.scrollY;
+    const dist = targetY - startY;
+    if (Math.abs(dist) < 2) { if (callback) callback(); return; }
+    const startTime = performance.now();
+    const requirePlaying = !!callback; // only gate on playing when used by auto-play
+    function step(now) {
+      if (requirePlaying && !playing) { cancelScrollAnim(); return; }
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      // ease-in-out
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      window.scrollTo(0, startY + dist * ease);
+      if (t < 1) {
+        scrollAnim = requestAnimationFrame(step);
+      } else {
+        scrollAnim = null;
+        if (callback) callback();
+      }
+    }
+    scrollAnim = requestAnimationFrame(step);
+  }
+
+  function scrollToTurn(el) {
+    scrollProtectUntil = Date.now() + 2000;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const absBottom = el.getBoundingClientRect().bottom + window.scrollY;
+        const barH = getControlsHeight();
+        const viewH = window.innerHeight - barH;
+        const targetY = Math.max(0, absBottom - viewH + PEEK_OFFSET);
+        const dist = Math.abs(targetY - window.scrollY);
+        if (dist < 2) return;
+        const duration = Math.min(TURN_SCROLL_MS + dist * 0.3, 1500);
+        smoothScrollTo(targetY, duration);
+      });
+    });
+  }
+
+  function showUpTo(index, { skipScroll = false, hideActiveBlocks = false } = {}) {
+    currentTurn = Math.min(index, TURNS.length);
+    const turns = turnElements();
+    // Mark turns up to currentTurn as visible
+    for (let i = 0; i < turns.length; i++) {
+      const el = turns[i];
+      if (i < currentTurn) {
+        el.classList.add("visible");
+        if (!playing) {
+          // Active turn (last visible): optionally keep blocks hidden
+          if (hideActiveBlocks && i === currentTurn - 1) {
+            hideAllBlocks(el);
+            lightAllWords(el.querySelector(".user-text") || el);
+          } else {
+            revealAllBlocks(el);
+          }
+        }
+      } else {
+        collapseExpanded(el);
+        el.classList.remove("visible");
+        hideAllBlocks(el);
+      }
+    }
+    updateBookmarkVisibility();
+    updateProgress();
+    setActiveTurn(currentTurn - 1);
+
+    // Pin active turn just below the controls bar, with a peek of previous turn
+    if (!skipScroll && currentTurn > 0) {
+      const el = turns[currentTurn - 1];
+      if (el) scrollToTurn(el);
+    }
+  }
+
+  // Adaptive wait: sleeps for gapMs/speed, but reads speed LIVE every tick
+  // so changing speed mid-wait takes effect immediately.
+  function adaptiveWait(gapMs, onDone) {
+    let remaining = gapMs;
+    let lastTick = performance.now();
+    let timer = null;
+
+    function tick() {
+      const now = performance.now();
+      remaining -= (now - lastTick) * speed;
+      lastTick = now;
+      if (remaining <= 0) {
+        onDone();
+        return;
+      }
+      timer = setTimeout(tick, Math.min(25, Math.max(4, remaining / speed)));
+    }
+
+    tick();
+    return function() {
+      clearTimeout(timer);
+      if (remaining > 0) {
+        const now = performance.now();
+        remaining -= (now - lastTick) * speed;
+        lastTick = now;
+      }
+      return Math.max(0, remaining);
+    };
+  }
+
+  /**
+   * Compute a word's nominal delay before live player-speed scaling.
+   * Combines the WPM base interval with length, deterministic jitter,
+   * punctuation, and structural-boundary adjustments documented in README.md.
+   */
+  function wordDelayMs(word, nextWord, index) {
+    const base = 60000 / readingWpm;
+    const text = word.textContent || "";
+    const letters = text.replace(/[^\p{L}\p{N}]/gu, "").length || text.length || 1;
+    const lengthFactor = WORD_LENGTH_BASE_FACTOR + Math.min(letters, WORD_LENGTH_MAX_CHARS) * WORD_LENGTH_PER_CHAR_FACTOR;
+    let hash = index + 2166136261;
+    for (const char of text) hash = Math.imul(hash ^ char.codePointAt(0), 16777619);
+    const jitter = WORD_JITTER_MIN + ((hash >>> 0) % WORD_JITTER_BUCKETS) / WORD_JITTER_DIVISOR;
+    let delay = base * lengthFactor * jitter;
+
+    if (/[.!?]["')\]]*$/.test(text)) delay += base * SENTENCE_PAUSE_WORDS;
+    else if (/[,;:]["')\]]*$/.test(text)) delay += base * CLAUSE_PAUSE_WORDS;
+
+    if (nextWord) {
+      const boundary = "p, li, h3, h4, h5, h6, td, th, pre";
+      if (word.closest(boundary) !== nextWord.closest(boundary)) delay += base * PARAGRAPH_PAUSE_WORDS;
+    }
+    return Math.round(delay);
+  }
+
+  const wordTimingCache = new WeakMap();
+
+  function getWordTiming(root) {
+    if (!root) return { words: [], prefix: [0], total: 0 };
+    const cached = wordTimingCache.get(root);
+    if (cached) return cached;
+    const words = [...root.querySelectorAll(".paced-segment")];
+    const prefix = [0];
+    for (let i = 0; i < words.length; i++) {
+      prefix.push(prefix[i] + wordDelayMs(words[i], words[i + 1] || null, i));
+    }
+    const timing = { words, prefix, total: prefix[prefix.length - 1] };
+    wordTimingCache.set(root, timing);
+    return timing;
+  }
+
+  function getLitWordTiming(root) {
+    const timing = getWordTiming(root);
+    let count = 0;
+    while (count < timing.words.length && timing.words[count].classList.contains("word-lit")) count++;
+    return {
+      duration: timing.prefix[count],
+      complete: count === timing.words.length,
+    };
+  }
+
+  function computePacedWordingTiming() {
+    let cursor = 0;
+    const starts = [];
+    const ends = [];
+    const stages = [];
+    const turns = turnElements();
+
+    for (let turnIndex = 0; turnIndex < TURNS.length; turnIndex++) {
+      const turn = TURNS[turnIndex];
+      const turnEl = turns[turnIndex];
+      const start = cursor;
+      starts.push(start);
+
+      cursor += getWordTiming(turnEl?.querySelector(".user-text")).total;
+      const userEnd = cursor;
+      const wrappers = [...(turnEl?.querySelectorAll(".block-wrapper") || [])];
+      const segments = groupTurnSegments(turn.blocks);
+      const gaps = computeSegmentGaps(segments, wrappers.length);
+      const blocks = [];
+
+      for (let blockIndex = 0; blockIndex < wrappers.length; blockIndex++) {
+        const gap = gaps[blockIndex] || 0;
+        cursor += gap;
+        cursor += getWordTiming(wrappers[blockIndex].querySelector(".assistant-text")).total;
+        blocks.push({ gap, end: cursor });
+      }
+
+      ends.push(cursor);
+      stages.push({ start, userEnd, blocks, contentEnd: cursor });
+      cursor += SHORT_TURN_DELAY_MS;
+    }
+
+    return { start: 0, starts, ends, total: cursor, stages };
+  }
+
+  function animateWords(root, startAt, onProgress, onComplete) {
+    const words = root ? [...root.querySelectorAll(".paced-segment")] : [];
+    let index = Math.min(startAt || 0, words.length);
+    let waitCancel = null;
+    let cancelled = false;
+
+    function next() {
+      if (cancelled) return;
+      if (index >= words.length) {
+        onComplete();
+        return;
+      }
+      const word = words[index];
+      const nextWord = words[index + 1] || null;
+      word.classList.add("word-lit");
+      index++;
+      onProgress(index);
+      scrollIntoView(word);
+      waitCancel = adaptiveWait(wordDelayMs(word, nextWord, index - 1), next);
+    }
+
+    next();
+    return function() {
+      cancelled = true;
+      if (waitCancel) waitCancel();
+      return index;
+    };
+  }
+
+  /**
+   * Progressively reveal blocks within a turn using timestamps.
+   * Reads speed live so changes take effect immediately.
+   * Returns a cancel function that instantly reveals remaining blocks.
+   */
+  function animateTurn(turnIndex, onComplete, startFrom) {
+    const turn = TURNS[turnIndex];
+    if (!turn) { onComplete(); return function(){}; }
+
+    const el = turnElements()[turnIndex];
+    if (!el) { onComplete(); return function(){}; }
+
+    const wrappers = el.querySelectorAll(".block-wrapper");
+    if (wrappers.length === 0) { onComplete(); return function(){}; }
+
+    const segments = groupTurnSegments(turn.blocks);
+    const gaps = computeSegmentGaps(segments, wrappers.length);
+
+    let cancelled = false;
+    let currentWaitCancel = null;
+    let currentIdx = startFrom || 0;
+
+    function revealWrapper(idx) {
+      const w = wrappers[idx];
+      if (!w) return;
+      // Clear any previous block-active
+      const prev = el.querySelector(".block-active");
+      if (prev) prev.classList.remove("block-active");
+      w.classList.remove("block-hidden");
+      w.classList.add("block-revealing");
+      w.classList.add("block-active");
+      requestAnimationFrame(() => {
+        const barH = getControlsHeight();
+        const viewBottom = window.innerHeight - barH;
+        const wRect = w.getBoundingClientRect();
+        if (wRect.bottom > viewBottom) {
+          cancelScrollAnim();
+          const targetY = wRect.bottom + window.scrollY - viewBottom + 20;
+          window.scrollTo({ top: targetY, behavior: idx === 0 ? "smooth" : "instant" });
+        }
+      });
+    }
+
+    function revealNext() {
+      if (cancelled || currentIdx >= gaps.length) {
+        if (!cancelled) {
+          for (const a of el.querySelectorAll(".block-active")) a.classList.remove("block-active");
+          animatePausedState = null;
+          onComplete();
+        }
+        return;
+      }
+      const idx = currentIdx;
+      const gapMs = gaps[idx];
+      currentIdx++;
+
+      if (gapMs === 0) {
+        revealWrapper(idx);
+        revealNext();
+        return;
+      }
+
+      currentWaitCancel = adaptiveWait(gapMs, () => {
+        if (cancelled) return;
+        currentWaitCancel = null;
+        revealWrapper(idx);
+        revealNext();
+      });
+    }
+
+    function cancel() {
+      if (cancelled) return;
+      cancelled = true;
+      if (currentWaitCancel) { currentWaitCancel(); currentWaitCancel = null; }
+      // Freeze in place — save where we paused
+      animatePausedState = { turnIndex, blockIdx: currentIdx };
+    }
+
+    // Start the chain
+    revealNext();
+    return cancel;
+  }
+
+  function animatePacedWordingTurn(turnIndex, onComplete, startFrom) {
+    const turn = TURNS[turnIndex];
+    const el = turnElements()[turnIndex];
+    if (!turn || !el) { queueMicrotask(onComplete); return function(){}; }
+
+    const wrappers = [...el.querySelectorAll(".block-wrapper")];
+    const segments = groupTurnSegments(turn.blocks);
+    const gaps = computeSegmentGaps(segments, wrappers.length);
+
+    let state;
+    if (startFrom?.mode === "paced-wording") {
+      state = { phase: startFrom.phase, blockIdx: startFrom.blockIdx, wordIdx: startFrom.wordIdx };
+    } else if (Number.isFinite(startFrom)) {
+      state = { phase: "block-wait", blockIdx: startFrom, wordIdx: 0 };
+    } else {
+      state = { phase: "user-words", blockIdx: 0, wordIdx: 0 };
+    }
+
+    let cancelled = false;
+    let waitCancel = null;
+    let wordCancel = null;
+
+    function waitThen(delay, callback) {
+      if (delay <= 0) { callback(); return; }
+      waitCancel = adaptiveWait(delay, () => {
+        waitCancel = null;
+        if (!cancelled) callback();
+      });
+    }
+
+    function animateRoot(root, onDone) {
+      const wordCount = root?.querySelectorAll(".paced-segment").length || 0;
+      if (state.wordIdx >= wordCount) { state.wordIdx = 0; onDone(); return; }
+      wordCancel = animateWords(root, state.wordIdx, (index) => {
+        state.wordIdx = index;
+      }, () => {
+        wordCancel = null;
+        state.wordIdx = 0;
+        onDone();
+      });
+    }
+
+    function revealWrapper(wrapper) {
+      const previous = el.querySelector(".block-active");
+      if (previous) previous.classList.remove("block-active");
+      wrapper.classList.remove("block-hidden");
+      wrapper.classList.add("block-revealing", "block-active");
+    }
+
+    function finishBlock() {
+      state.blockIdx++;
+      state.wordIdx = 0;
+      state.phase = "block-wait";
+      runBlock();
+    }
+
+    function runBlockWords() {
+      const wrapper = wrappers[state.blockIdx];
+      const textRoot = wrapper?.querySelector(".assistant-text");
+      if (!textRoot) { finishBlock(); return; }
+      animateRoot(textRoot, finishBlock);
+    }
+
+    function runBlock() {
+      if (cancelled) return;
+      if (state.blockIdx >= wrappers.length) {
+        for (const active of el.querySelectorAll(".block-active")) active.classList.remove("block-active");
+        animatePausedState = null;
+        queueMicrotask(() => { if (!cancelled) onComplete(); });
+        return;
+      }
+      if (state.phase === "block-words") { runBlockWords(); return; }
+
+      const wrapper = wrappers[state.blockIdx];
+      waitThen(gaps[state.blockIdx] || 0, () => {
+        revealWrapper(wrapper);
+        const textRoot = wrapper.querySelector(".assistant-text");
+        if (textRoot) {
+          state.phase = "block-words";
+          runBlockWords();
+        } else {
+          finishBlock();
+        }
+      });
+    }
+
+    function runUserWords() {
+      const userRoot = el.querySelector(".user-text");
+      if (!userRoot) {
+        state.phase = "block-wait";
+        runBlock();
+        return;
+      }
+      animateRoot(userRoot, () => {
+        state.phase = "block-wait";
+        runBlock();
+      });
+    }
+
+    if (state.phase === "user-words") runUserWords();
+    else runBlock();
+
+    return function cancel() {
+      if (cancelled) return;
+      cancelled = true;
+      if (waitCancel) waitCancel();
+      if (wordCancel) state.wordIdx = wordCancel();
+      animatePausedState = { turnIndex, mode: "paced-wording", ...state };
+    };
+  }
+
+  function animatePlaybackTurn(turnIndex, onComplete, startFrom) {
+    return pacedWording
+      ? animatePacedWordingTurn(turnIndex, onComplete, startFrom)
+      : animateTurn(turnIndex, onComplete, startFrom);
+  }
+
+  // After all blocks in a turn are revealed, pause then advance
+  function dwellThenAdvance(remainingMs = SHORT_TURN_DELAY_MS) {
+    const cancelWait = adaptiveWait(remainingMs, () => {
+      if (!playing) return;
+      animateCancelFn = null;
+      playStep();
+    });
+    animateCancelFn = () => {
+      const remainingDwellMs = cancelWait();
+      animatePausedState = { turnIndex: currentTurn - 1, mode: "dwell", remainingMs: remainingDwellMs };
+    };
+  }
+
+  function playStep() {
+    if (!playing) return;
+    if (currentTurn >= TURNS.length) {
+      displayedTimeMs = sessionTotalMs;
+      updateTimerDisplay();
+      stopPlay();
+      return;
+    }
+
+    // Show the turn container (header + user text) immediately
+    const fromSplash = currentTurn === 0;
+    showUpTo(currentTurn + 1, { skipScroll: true });
+
+    // From splash: instantly position at the first turn
+    if (fromSplash) {
+      const el = turnElements()[0];
+      if (el) {
+        const barH = getControlsHeight();
+        const viewH = window.innerHeight - barH;
+        const absBottom = el.getBoundingClientRect().bottom + window.scrollY;
+        window.scrollTo({ top: Math.max(0, absBottom - viewH + PEEK_OFFSET), behavior: "instant" });
+      }
+    }
+
+    const el = turnElements()[currentTurn - 1];
+    if (!el) { stopPlay(); return; }
+
+    // For turns with no blocks (e.g. /exit), scroll to them directly
+    const wrappers = el.querySelectorAll(".block-wrapper");
+    if (wrappers.length === 0 && !pacedWording) {
+      scrollToBottom(el);
+      dwellThenAdvance();
+      return;
+    }
+
+    // Animate blocks within the turn, then dwell before advancing
+    animateCancelFn = animatePlaybackTurn(currentTurn - 1, () => {
+      animateCancelFn = null;
+      if (!playing) return;
+      dwellThenAdvance();
+    });
+  }
+
+  function startPlay() {
+    hideSplash();
+
+    if (currentTurn >= TURNS.length) {
+      // Check if the last turn still has unrevealed blocks
+      const lastEl = turnElements()[TURNS.length - 1];
+      const hasHidden = lastEl && lastEl.querySelectorAll(".block-wrapper.block-hidden").length > 0;
+      const hasUnlitWords = pacedWording && lastEl?.querySelector(".paced-segment:not(.word-lit)");
+      const hasPausedAnimation = animatePausedState?.turnIndex === TURNS.length - 1;
+      if (hasHidden || hasUnlitWords || hasPausedAnimation) {
+        // Still have blocks to show — keep at last turn for resume logic below
+        currentTurn = TURNS.length;
+      } else {
+        // Fully played — reset to beginning
+        currentTurn = 0;
+        animatePausedState = null;
+        for (const el of transcript.children) {
+          collapseExpanded(el);
+          el.classList.remove("visible");
+        }
+        for (const w of transcript.querySelectorAll(".block-wrapper")) {
+          w.classList.add("block-hidden");
+          w.classList.remove("block-revealing");
+        }
+        dimAllWords(transcript);
+      }
+    }
+    playing = true;
+    startTimer();
+    btnPlay.innerHTML = "&#9646;&#9646;";
+    btnPlay.classList.add("active");
+
+    // Scroll current turn into view so it's clear playback started
+    if (currentTurn > 0) {
+      const el = turnElements()[currentTurn - 1];
+      if (el) scrollToBottom(el);
+    }
+
+    // Resume mid-turn if we paused inside a block animation
+    if (animatePausedState) {
+      const ps = animatePausedState;
+      animatePausedState = null;
+      if (ps.mode === "dwell") {
+        dwellThenAdvance(ps.remainingMs);
+        return;
+      }
+      animateCancelFn = animatePlaybackTurn(ps.turnIndex, () => {
+        animateCancelFn = null;
+        if (!playing) return;
+        dwellThenAdvance();
+      }, ps.mode === "paced-wording" ? ps : ps.blockIdx);
+      return;
+    }
+
+    // Resume current turn based on block state
+    if (currentTurn > 0) {
+      const turnEl = turnElements()[currentTurn - 1];
+      if (turnEl) {
+        const revealed = turnEl.querySelectorAll(".block-wrapper:not(.block-hidden)").length;
+        const total = turnEl.querySelectorAll(".block-wrapper").length;
+        if (revealed < total) {
+          // Partially revealed (from block-by-block stepping): animate remaining blocks
+          animateCancelFn = animatePlaybackTurn(currentTurn - 1, () => {
+            animateCancelFn = null;
+            if (!playing) return;
+            dwellThenAdvance();
+          }, revealed);
+          return;
+        }
+        if (revealed > 0 && total > 0) {
+          // Fully revealed (from scrolling): dwell then advance to next turn
+          dwellThenAdvance();
+          return;
+        }
+      }
+    }
+
+    playStep();
+  }
+
+  function stopPlay() {
+    playing = false;
+    stopTimer();
+    cancelScrollAnim();
+    btnPlay.innerHTML = "&#9654;";
+    btnPlay.classList.remove("active");
+    if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+    if (animateCancelFn) { animateCancelFn(); animateCancelFn = null; }
+  }
+
+  /**
+   * Unified navigation: all manual navigation (buttons, seek, chapters, clicks)
+   * goes through here. Stops playback, clears mid-turn state, manages splash.
+   */
+  function navigate(targetTurn, opts) {
+    if (playing) stopPlay();
+    animatePausedState = null;
+    if (targetTurn <= 0) {
+      showUpTo(0);
+      showSplash();
+    } else {
+      hideSplash();
+      showUpTo(Math.min(targetTurn, TURNS.length), opts);
+    }
+  }
+
+  // Scroll just enough to keep an element visible above the controls bar
+  function scrollIntoView(el) {
+    requestAnimationFrame(() => {
+      const barH = getControlsHeight();
+      const viewBottom = window.innerHeight - barH;
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom > viewBottom) {
+        cancelScrollAnim();
+        const targetY = rect.bottom + window.scrollY - viewBottom + PEEK_OFFSET;
+        window.scrollTo({ top: targetY, behavior: "smooth" });
+      } else if (rect.top < 0) {
+        cancelScrollAnim();
+        const targetY = rect.top + window.scrollY - PEEK_OFFSET;
+        window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+      }
+    });
+  }
+
+  // Scroll so the element's bottom sits just above the controls bar
+  function scrollToBottom(el) {
+    requestAnimationFrame(() => {
+      const barH = getControlsHeight();
+      const viewH = window.innerHeight - barH;
+      const absBottom = el.getBoundingClientRect().bottom + window.scrollY;
+      const targetY = Math.max(0, absBottom - viewH + PEEK_OFFSET);
+      cancelScrollAnim();
+      window.scrollTo({ top: targetY, behavior: "smooth" });
+    });
+  }
+
+  function stepForward() {
+    if (playing) stopPlay();
+    animatePausedState = null;
+    scrollProtectUntil = Date.now() + 2000;
+
+    if (currentTurn === 0) {
+      // From splash: show turn 1 with blocks hidden
+      hideSplash();
+      currentTurn = 1;
+      const turns = turnElements();
+      if (turns[0]) {
+        turns[0].classList.add("visible");
+        hideAllBlocks(turns[0]);
+        reconcilePacedWordsToBlockState(turns[0]);
+        scrollToBottom(turns[0]);
+      }
+      updateBookmarkVisibility();
+      updateProgress();
+      setActiveTurn(0);
+      return;
+    }
+
+    const turnEl = turnElements()[currentTurn - 1];
+    if (!turnEl) return;
+    const hiddenBlocks = turnEl.querySelectorAll(".block-wrapper.block-hidden");
+
+    if (hiddenBlocks.length > 0) {
+      // Reveal next block within current turn
+      const w = hiddenBlocks[0];
+      const prev = turnEl.querySelector(".block-active");
+      if (prev) prev.classList.remove("block-active");
+      w.classList.remove("block-hidden");
+      w.classList.add("block-revealing", "block-active");
+      reconcilePacedWordsToBlockState(turnEl);
+      syncTimerToBlock();
+      scrollIntoView(w);
+    } else if (currentTurn < TURNS.length) {
+      // All blocks revealed — advance to next turn with blocks hidden
+      reconcilePacedWordsToBlockState(turnEl);
+      const prev = turnEl.querySelector(".block-active");
+      if (prev) prev.classList.remove("block-active");
+      currentTurn++;
+      const turns = turnElements();
+      const nextEl = turns[currentTurn - 1];
+      if (nextEl) {
+        nextEl.classList.add("visible");
+        hideAllBlocks(nextEl);
+        reconcilePacedWordsToBlockState(nextEl);
+        scrollIntoView(nextEl);
+      }
+      updateBookmarkVisibility();
+      updateProgress();
+      setActiveTurn(currentTurn - 1);
+    } else {
+      reconcilePacedWordsToBlockState(turnEl);
+      syncTimerToBlock();
+    }
+  }
+
+  function stepBack() {
+    if (playing) stopPlay();
+    animatePausedState = null;
+    scrollProtectUntil = Date.now() + 2000;
+
+    const turnEl = currentTurn > 0 ? turnElements()[currentTurn - 1] : null;
+    if (turnEl) {
+      const revealedBlocks = turnEl.querySelectorAll(".block-wrapper:not(.block-hidden)");
+      if (revealedBlocks.length > 0) {
+        // Hide last revealed block within current turn
+        const last = revealedBlocks[revealedBlocks.length - 1];
+        collapseExpanded(last);
+        last.classList.add("block-hidden");
+        last.classList.remove("block-revealing", "block-active");
+        reconcilePacedWordsToBlockState(turnEl);
+        // Scroll down to show what remains
+        const remaining = turnEl.querySelectorAll(".block-wrapper:not(.block-hidden)");
+        if (remaining.length > 0) {
+          remaining[remaining.length - 1].classList.add("block-active");
+          scrollToBottom(remaining[remaining.length - 1]);
+        } else {
+          scrollToBottom(turnEl);
+        }
+        syncTimerToBlock();
+        return;
+      }
+    }
+
+    // No blocks to hide — go to previous turn (all blocks revealed) or splash
+    if (currentTurn <= 1) {
+      navigate(0);
+    } else {
+      currentTurn--;
+      const turns = turnElements();
+      // Hide the turn we just left and close any expanded blocks
+      const leftTurn = turns[currentTurn];
+      if (leftTurn) {
+        collapseExpanded(leftTurn);
+        leftTurn.classList.remove("visible");
+      }
+      // Previous turn should have all blocks revealed
+      const prevEl = turns[currentTurn - 1];
+      if (prevEl) {
+        revealAllBlocks(prevEl);
+        scrollToBottom(prevEl);
+      }
+      updateBookmarkVisibility();
+      updateProgress();
+      setActiveTurn(currentTurn - 1);
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // § PROGRESS & NAVIGATION
+  // ═══════════════════════════════════════════
+
+  function updateProgress() {
+    const pct = Math.max(0, turnToPct(currentTurn) * 100);
+    progressFill.style.width = pct + "%";
+    // Sync timer to current position
+    syncTimerToBlock();
+    if (playing) startTimer();
+    // Update turn dot states
+    for (const dot of progressBar.querySelectorAll(".turn-dot")) {
+      const turn = parseInt(dot.dataset.turn, 10);
+      dot.classList.toggle("reached", turn <= currentTurn);
+      dot.classList.toggle("active", turn === currentTurn);
+    }
+    // Update bookmark dot states
+    let activeDot = null;
+    for (const dot of progressBar.querySelectorAll(".bookmark-dot")) {
+      const turn = parseInt(dot.dataset.turn, 10);
+      const reached = turn <= currentTurn;
+      dot.classList.toggle("reached", reached);
+      dot.classList.remove("active");
+      if (reached) activeDot = dot;
+    }
+    if (activeDot) activeDot.classList.add("active");
+  }
+
+  function updateTimerDisplay() {
+    progressText.textContent = formatTime(displayedTimeMs) + " / " + formatTime(sessionTotalMs);
+  }
+
+  function startTimer() {
+    if (timerInterval) return;
+    timerInterval = setInterval(() => {
+      // Tick forward scaled by playback speed, capped at session total
+      displayedTimeMs = Math.min(displayedTimeMs + 1000 * speed, sessionTotalMs);
+      updateTimerDisplay();
+      if (displayedTimeMs >= sessionTotalMs) stopTimer();
+    }, 1000);
+  }
+
+  /** Update timer based on fraction of blocks revealed in current turn. */
+  function syncTimerToBlock() {
+    if (sessionStart == null || currentTurn <= 0) { displayedTimeMs = 0; updateTimerDisplay(); return; }
+    const idx = currentTurn - 1;
+    const turnEl = turnElements()[idx];
+    if (!turnEl) return;
+
+    if (pacedWordingTiming) {
+      const stage = pacedWordingTiming.stages[idx];
+      if (!stage) return;
+      const userProgress = getLitWordTiming(turnEl.querySelector(".user-text"));
+      let elapsed = stage.start + userProgress.duration;
+      if (userProgress.complete) {
+        const wrappers = [...turnEl.querySelectorAll(".block-wrapper")];
+        for (let blockIndex = 0; blockIndex < wrappers.length; blockIndex++) {
+          const wrapper = wrappers[blockIndex];
+          if (wrapper.classList.contains("block-hidden")) break;
+          elapsed += stage.blocks[blockIndex]?.gap || 0;
+          const blockProgress = getLitWordTiming(wrapper.querySelector(".assistant-text"));
+          elapsed += blockProgress.duration;
+          if (!blockProgress.complete) break;
+        }
+      }
+      displayedTimeMs = Math.min(Math.round(elapsed), sessionTotalMs);
+      updateTimerDisplay();
+      return;
+    }
+
+    const total = turnEl.querySelectorAll(".block-wrapper").length;
+    const revealed = turnEl.querySelectorAll(".block-wrapper:not(.block-hidden)").length;
+    const tStart = turnStartTimes[idx] - sessionStart;
+    const tEnd = turnEndTimes[idx] - sessionStart;
+    const frac = total > 0 ? revealed / total : 0;
+    displayedTimeMs = Math.round(tStart + (tEnd - tStart) * frac);
+    updateTimerDisplay();
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function setActiveTurn(index) {
+    for (const el of $$(".turn.active")) el.classList.remove("active");
+    const turns = turnElements();
+    if (index >= 0 && index < turns.length) {
+      turns[index].classList.add("active");
+    }
+  }
+
+  function seekFromX(clientX) {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const target = pctToTurn(pct);
+    if (target <= 1 && pct < 0.05) {
+      navigate(0);
+    } else {
+      navigate(Math.max(1, target), { hideActiveBlocks: true });
+    }
+  }
+
+  // Scroll-based activation: as user scrolls down, reveal new turns
+  function onScrollUpdate() {
+    if (playing || Date.now() < scrollProtectUntil) return;
+    if (isSplashVisible()) return;
+    const turns = turnElements();
+    if (!turns.length) return;
+    const viewMid = window.innerHeight / 2;
+
+    let best = -1;
+    for (let i = 0; i < turns.length; i++) {
+      const rect = turns[i].getBoundingClientRect();
+      if (rect.top < viewMid) best = i;
+    }
+    if (best >= 0) {
+      const idx = best + 1; // 1-based
+      if (idx !== currentTurn) {
+        if (idx > currentTurn) {
+          // Scrolling forward — reveal new turns
+          currentTurn = idx;
+          for (let i = 0; i < turns.length; i++) {
+            turns[i].classList.toggle("visible", i < currentTurn);
+            if (i < currentTurn) {
+              revealAllBlocks(turns[i]);
+            }
+          }
+          updateBookmarkVisibility();
+        } else {
+          // Scrolling backward — update active turn (don't hide already-revealed turns)
+          currentTurn = idx;
+        }
+        updateProgress();
+        setActiveTurn(currentTurn - 1);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // § UI WIRING
+  // ═══════════════════════════════════════════
+
+  // Popover management — single close-all + single document click handler
+  const popoverWraps = [speedWrap, filterWrap, chapterWrap, moreWrap].filter(Boolean);
+
+  function closeAllPopovers(exceptEl) {
+    for (const el of popoverWraps) {
+      if (exceptEl && el === exceptEl) continue;
+      el.classList.remove("open");
+    }
+  }
+
+
+  document.addEventListener("click", (e) => {
+    for (const wrap of popoverWraps) {
+      if (wrap.classList.contains("open") && wrap.contains(e.target)) return;
+    }
+    closeAllPopovers();
+  });
+
+  // Close all popovers when iframe loses focus
+  window.addEventListener("blur", () => { closeAllPopovers(); });
+
+  // Play / Step buttons
+  btnPlay.addEventListener("click", () => playing ? stopPlay() : startPlay());
+  btnNext.addEventListener("click", () => jumpBlock(1));
+  btnPrev.addEventListener("click", () => jumpBlock(-1));
+  btnNextTurn.addEventListener("click", () => jumpTurn(1));
+  btnPrevTurn.addEventListener("click", () => jumpTurn(-1));
+
+  // Speed popover toggle
+  speedBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const wasOpen = speedWrap.classList.contains("open");
+    closeAllPopovers();
+    if (!wasOpen) speedWrap.classList.add("open");
+  });
+
+  // Populate speed popover with buttons
+  for (let i = SPEED_STEPS.length - 1; i >= 0; i--) { const s = SPEED_STEPS[i];
+    const btn = document.createElement("button");
+    btn.textContent = s + "x";
+    btn.dataset.speed = s;
+    if (s === speed) btn.classList.add("active");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setSpeed(s);
+      speedWrap.classList.remove("open");
+    });
+    speedPopover.appendChild(btn);
+  }
+  // Add paced toggle to speed popover if real timestamps available
+  if (hasRealTimestamps) {
+    const pacedLabel = document.createElement("label");
+    pacedLabel.className = "paced-toggle";
+    pacedLabel.id = "paced-toggle-wrap";
+    pacedLabel.title = "Smooth out pauses — timing based on content length instead of real time";
+    pacedLabel.innerHTML = '<input type="checkbox" id="toggle-paced"> Auto-paced';
+    speedPopover.appendChild(pacedLabel);
+    const togglePacedEl = pacedLabel.querySelector("input");
+    togglePacedEl.addEventListener("change", () => {
+      togglePaced2.checked = togglePacedEl.checked;
+      switchTiming(togglePacedEl.checked);
+    });
+    // Replace the const reference
+    togglePaced = togglePacedEl;
+  }
+
+  // Filter popover toggle
+  filterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const wasOpen = filterWrap.classList.contains("open");
+    closeAllPopovers();
+    if (!wasOpen) filterWrap.classList.add("open");
+  });
+
+  // Filter checkboxes
+  toggleThinking.addEventListener("change", applyVisibility);
+  toggleTools.addEventListener("change", applyVisibility);
+
+  // Font size controls
+  const FONT_SIZE_STEPS = ["small", "normal", "large"];
+  const FONT_SIZE_PX = { small: "11px", normal: "13px", large: "15px" };
+  const FONT_SIZE_LABELS = { small: "S", normal: "M", large: "L" };
+  let currentFontSize = /*FONT_SIZE_NAME*/"normal";
+  function setFontSize(size) {
+    currentFontSize = size;
+    document.body.style.setProperty("--font-size", FONT_SIZE_PX[size] || FONT_SIZE_PX.normal);
+    for (const btn of $$(".font-size-cycle")) {
+      btn.textContent = FONT_SIZE_LABELS[size] || "M";
+    }
+  }
+  setFontSize(currentFontSize);
+  for (const btn of $$(".font-size-cycle")) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = FONT_SIZE_STEPS.indexOf(currentFontSize);
+      setFontSize(FONT_SIZE_STEPS[(idx + 1) % FONT_SIZE_STEPS.length]);
+    });
+  }
+
+  // Auto-paced toggle (more menu version)
+  if (hasRealTimestamps) {
+    $("#paced-toggle-wrap2").style.display = "";
+  }
+  togglePaced2.addEventListener("change", () => {
+    if (togglePaced) togglePaced.checked = togglePaced2.checked;
+    switchTiming(togglePaced2.checked);
+  });
+
+  // Chapter popover toggle (wired in bookmarks section below)
+
+  // More menu (mobile/iframe) toggle
+  const moreOpenLink = $("#more-open-link");
+  moreBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const wasOpen = moreWrap.classList.contains("open");
+    closeAllPopovers();
+    if (!wasOpen) {
+      // Update open link with current turn position
+      const activeTurn = $(".turn.active");
+      const turnIdx = activeTurn ? parseInt(activeTurn.dataset.index, 10) : currentTurn;
+      moreOpenLink.href = location.href.replace(/#.*/, "") + "#turn=" + turnIdx;
+      moreWrap.classList.add("open");
+    }
+  });
+
+  // Sync more-popover controls with main controls
+  speedBtn2.addEventListener("click", () => {
+    const idx = SPEED_STEPS.indexOf(speed);
+    setSpeed(SPEED_STEPS[(idx + 1) % SPEED_STEPS.length]);
+  });
+
+  function syncCheckbox(primary, secondary) {
+    secondary.addEventListener("change", () => {
+      primary.checked = secondary.checked;
+      applyVisibility();
+    });
+    primary.addEventListener("change", () => {
+      secondary.checked = primary.checked;
+    });
+  }
+  syncCheckbox(toggleThinking, toggleThinking2);
+  syncCheckbox(toggleTools, toggleTools2);
+
+  // Progress bar interactions
+  progressBar.addEventListener("click", (e) => seekFromX(e.clientX));
+
+  // Touch drag on progress bar
+  progressBar.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    seekFromX(e.touches[0].clientX);
+  }, { passive: false });
+  progressBar.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    seekFromX(e.touches[0].clientX);
+  }, { passive: false });
+
+  // Progress bar hover tooltip
+  progressBar.addEventListener("mousemove", (e) => {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const turnIdx = pctToTurn(pct);
+    const turn = TURNS[turnIdx - 1];
+    let label = `#${turnIdx}`;
+    if (turn && turn.timestamp && sessionStart != null) {
+      const delta = new Date(turn.timestamp).getTime() - sessionStart;
+      label += ` · ${formatTime(delta)}`;
+    }
+    progressTooltip.textContent = label;
+    // Position tooltip, clamped to bar edges
+    const left = Math.max(20, Math.min(rect.width - 20, e.clientX - rect.left));
+    progressTooltip.style.left = left + "px";
+  });
+
+  // Expanding/collapsing sections pauses playback
+  transcript.addEventListener("click", (e) => {
+    if (playing && (e.target.closest(".turn-header") || e.target.closest(".thinking-header") || e.target.closest(".tool-header") || e.target.closest(".tool-group-header") || e.target.closest(".collapsible-toggle"))) {
+      stopPlay();
+    }
+  });
+
+  let lastJumpedBlock = null;
+  let lastPromptTarget = null;
+
+  function exposeTarget(target, openTarget = true) {
+    if (!target) return;
+    hideSplash();
+    const turn = target.closest(".turn");
+    if (turn) {
+      turn.classList.add("visible");
+      turn.classList.remove("collapsed");
+      for (const el of document.querySelectorAll(".turn.active")) el.classList.remove("active");
+      turn.classList.add("active");
+      currentTurn = Math.max(1, Number(turn.dataset.index) || currentTurn);
+    }
+    target.closest(".block-wrapper")?.classList.remove("block-hidden");
+    target.closest(".collapsible-wrap")?.classList.remove("is-collapsed");
+    if (openTarget) {
+      target.closest(".tool-group")?.classList.add("open");
+      if (target.matches(".tool-group,.tool-block,.thinking-block")) target.classList.add("open");
+    }
+  }
+
+  function focusTraceTarget(target) {
+    if (!target) return;
+    if (lastJumpedBlock && lastJumpedBlock !== target) {
+      const previous = lastJumpedBlock;
+      previous.classList.remove("trace-focus");
+      if (previous.classList.contains("thinking-block")) previous.classList.remove("open");
+      if (previous.classList.contains("tool-block")) previous.classList.remove("open");
+      const oldGroup = previous.classList.contains("tool-group") ? previous : previous.closest(".tool-group");
+      const targetStaysInOldGroup = oldGroup && (target === oldGroup || oldGroup.contains(target));
+      if (oldGroup && !targetStaysInOldGroup) oldGroup.classList.remove("open");
+    }
+    exposeTarget(target, true);
+    if (target.classList.contains("tool-block")) closeToolPeers(target);
+    if (target.classList.contains("tool-group")) closeGroupPeers(target);
+    target.classList.add("trace-focus");
+    lastJumpedBlock = target;
+    scrollProtectUntil = Date.now() + 1800;
+    target.scrollIntoView({ behavior:"smooth", block:"center" });
+    window.replayReadingPaused = true;
+    setTimeout(captureReplayLiveState, 400);
+  }
+
+  function jumpTurn(dir) {
+    if (playing) stopPlay();
+    if (lastJumpedBlock) {
+      lastJumpedBlock.classList.remove("trace-focus", "open");
+      lastJumpedBlock.closest(".tool-group")?.classList.remove("open");
+      lastJumpedBlock = null;
+    }
+    const prompts = [...document.querySelectorAll(".role-section.role-user")];
+    if (!prompts.length) return;
+    let index = lastPromptTarget ? prompts.indexOf(lastPromptTarget) : -1;
+    if (index < 0) {
+      const line = Math.max(90, window.innerHeight * .3);
+      index = prompts.findLastIndex((el) => el.getBoundingClientRect().top < line);
+    }
+    index = dir > 0 ? Math.min(index + 1, prompts.length - 1) : Math.max(index - 1, 0);
+    const target = prompts[index];
+    exposeTarget(target, false);
+    for (const el of document.querySelectorAll(".trace-focus")) el.classList.remove("trace-focus");
+    target.classList.add("trace-focus");
+    lastPromptTarget = target;
+    scrollProtectUntil = Date.now() + 1800;
+    target.scrollIntoView({ behavior:"smooth", block:"start" });
+    window.replayReadingPaused = true;
+  }
+
+  function traceTargets() {
+    return [...document.querySelectorAll(".thinking-block,.tool-group,.tool-block.activity-code-edit,.tool-block.activity-md-edit")];
+  }
+
+  function jumpBlock(dir) {
+    if (playing) stopPlay();
+    const blocks = traceTargets();
+    if (!blocks.length) return;
+    let index = lastJumpedBlock ? blocks.indexOf(lastJumpedBlock) : -1;
+    if (index < 0) {
+      const line = window.innerHeight * .5;
+      index = blocks.findLastIndex((el) => el.getBoundingClientRect().top < line);
+    }
+    index = dir > 0 ? Math.min(index + 1, blocks.length - 1) : Math.max(index - 1, 0);
+    focusTraceTarget(blocks[index]);
+  }
+
+  const traceModeButton = document.getElementById("traceMode");
+  traceModeButton.addEventListener("click", () => jumpBlock(1));
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.matches("input,textarea,[contenteditable=true]")) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") { e.preventDefault(); openReplaySearch(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); jumpTurn(1); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); jumpTurn(-1); return; }
+    if (e.key === "ArrowRight" || e.key === "l") { e.preventDefault(); jumpBlock(1); return; }
+    if (e.key === "ArrowLeft" || e.key === "h") { e.preventDefault(); jumpBlock(-1); return; }
+    if (e.key === " " || e.key === "k") { e.preventDefault(); playing ? stopPlay() : startPlay(); }
+  });
+
+  const replaySearch = document.getElementById("readerSearch");
+  const replaySearchInput = document.getElementById("readerSearchInput");
+  const replaySearchCount = document.getElementById("readerSearchCount");
+  let replaySearchHits = [];
+  let replaySearchIndex = -1;
+
+  function clearReplaySearchMarks() {
+    for (const mark of document.querySelectorAll("mark.replay-search-hit")) mark.replaceWith(document.createTextNode(mark.textContent));
+    transcript.normalize();
+    replaySearchHits = []; replaySearchIndex = -1;
+  }
+
+  function closePreviousSearchReveal() {
+    for (const el of document.querySelectorAll("[data-search-opened]")) {
+      if (el.classList.contains("turn")) el.classList.add("collapsed");
+      else if (el.classList.contains("collapsible-wrap")) el.classList.add("is-collapsed");
+      else el.classList.remove("open");
+      delete el.dataset.searchOpened;
+    }
+  }
+
+  function revealSearchHit(mark) {
+    closePreviousSearchReveal();
+    const turn = mark.closest(".turn");
+    if (turn?.classList.contains("collapsed")) { turn.classList.remove("collapsed"); turn.dataset.searchOpened="1"; }
+    mark.closest(".block-wrapper")?.classList.remove("block-hidden");
+    for (const el of [mark.closest(".collapsible-wrap"), mark.closest(".tool-group"), mark.closest(".tool-block"), mark.closest(".thinking-block")]) {
+      if (!el) continue;
+      if (el.classList.contains("collapsible-wrap")) {
+        if (el.classList.contains("is-collapsed")) { el.classList.remove("is-collapsed"); el.dataset.searchOpened="1"; }
+      } else if (!el.classList.contains("open")) { el.classList.add("open"); el.dataset.searchOpened="1"; }
+    }
+    if (mark.closest(".tool-block")) closeToolPeers(mark.closest(".tool-block"));
+    for (const hit of replaySearchHits) hit.classList.remove("current");
+    mark.classList.add("current");
+    exposeTarget(mark, false);
+    scrollProtectUntil = Date.now() + 1800;
+    mark.scrollIntoView({ behavior:"smooth", block:"center" });
+    replaySearchCount.textContent = `${replaySearchIndex + 1} of ${replaySearchHits.length}`;
+    window.replayReadingPaused = true;
+  }
+
+  function runReplaySearch() {
+    clearReplaySearchMarks();
+    closePreviousSearchReveal();
+    const query = replaySearchInput.value.trim();
+    if (!query) { replaySearchCount.textContent="0 results"; return; }
+    const lower = query.toLocaleLowerCase();
+    const walker = document.createTreeWalker(transcript, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || !node.nodeValue.trim() || parent.closest("script,style,textarea,button,.section-note-editor")) return NodeFilter.FILTER_REJECT;
+        return node.nodeValue.toLocaleLowerCase().includes(lower) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    const nodes=[]; while (walker.nextNode() && nodes.length < 1200) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const text=node.nodeValue, folded=text.toLocaleLowerCase(); let from=0; const frag=document.createDocumentFragment();
+      while (true) {
+        const at=folded.indexOf(lower,from);
+        if (at<0) { frag.append(document.createTextNode(text.slice(from))); break; }
+        if (at>from) frag.append(document.createTextNode(text.slice(from,at)));
+        const mark=document.createElement("mark"); mark.className="replay-search-hit"; mark.textContent=text.slice(at,at+query.length); frag.append(mark);
+        from=at+query.length;
+      }
+      node.replaceWith(frag);
+    }
+    replaySearchHits=[...document.querySelectorAll("mark.replay-search-hit")];
+    replaySearchCount.textContent = replaySearchHits.length ? `${replaySearchHits.length} results` : "0 results";
+    if (replaySearchHits.length) { replaySearchIndex=0; revealSearchHit(replaySearchHits[0]); }
+  }
+
+  function stepReplaySearch(dir) {
+    if (!replaySearchHits.length) { runReplaySearch(); return; }
+    replaySearchIndex=(replaySearchIndex+dir+replaySearchHits.length)%replaySearchHits.length;
+    revealSearchHit(replaySearchHits[replaySearchIndex]);
+  }
+
+  function openReplaySearch() {
+    replaySearch.classList.add("open"); replaySearchInput.focus(); replaySearchInput.select(); window.replayReadingPaused=true;
+  }
+  function closeReplaySearch() {
+    replaySearch.classList.remove("open"); clearReplaySearchMarks(); closePreviousSearchReveal();
+  }
+  document.getElementById("readerSearchOpen").addEventListener("click", openReplaySearch);
+  document.getElementById("readerSearchClose").addEventListener("click", closeReplaySearch);
+  document.getElementById("readerSearchNext").addEventListener("click", () => stepReplaySearch(1));
+  document.getElementById("readerSearchPrev").addEventListener("click", () => stepReplaySearch(-1));
+  replaySearchInput.addEventListener("input", runReplaySearch);
+  replaySearchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); closeReplaySearch(); return; }
+    if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); stepReplaySearch(e.shiftKey?-1:1); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); stepReplaySearch(-1); }
+  });
+
+  // Iframe detection — compact mode + title as pop-out link
+  let inIframe = false;
+  try { inIframe = window !== window.top; } catch (e) { inIframe = true; }
+  if (inIframe) {
+    document.body.classList.add("in-iframe");
+    barTitle.addEventListener("click", () => {
+      const activeTurn = $(".turn.active");
+      const turnIdx = activeTurn ? parseInt(activeTurn.dataset.index, 10) : currentTurn;
+      const url = location.href.replace(/#.*/, "") + "#turn=" + turnIdx;
+      window.open(url, "_blank");
+    });
+  }
+
+  // Scroll handler
+  window.addEventListener("scroll", () => {
+    if (!scrollTick) {
+      scrollTick = true;
+      requestAnimationFrame(() => {
+        onScrollUpdate();
+        scrollTick = false;
+      });
+    }
+  }, { passive: true });
+
+  // --- Human-prompt peaks above the progress bar ---
+  for (let i = 0; i < TURNS.length; i++) {
+    if (!String(TURNS[i].user_text || "").trim()) continue;
+    const dot = document.createElement("div");
+    dot.className = "turn-dot";
+    dot.dataset.turn = i + 1;
+    dot.style.left = turnToPct(i + 1) * 100 + "%";
+    progressBar.appendChild(dot);
+  }
+
+  // --- Bookmarks / Chapters ---
+  if (BOOKMARKS.length > 0) {
+    chapterWrap.style.display = "";
+
+    // Bookmark dots on progress bar (pointer-events: none, clicks go through to bar)
+    for (const bm of BOOKMARKS) {
+      const dot = document.createElement("div");
+      dot.className = "bookmark-dot";
+      dot.dataset.turn = bm.turn;
+      dot.style.left = turnToPct(bm.turn) * 100 + "%";
+      progressBar.appendChild(dot);
+    }
+
+    // Chapter menu items (desktop dropdown + more-popover)
+    const moreChapters = $("#more-chapters");
+    const moreChapterList = $("#more-chapter-list");
+    moreChapters.style.display = "";
+
+    for (const bm of BOOKMARKS) {
+      const item = document.createElement("div");
+      item.className = "chapter-item";
+      item.title = bm.label;
+      item.innerHTML = `<span class="chapter-item-turn">#${bm.turn}</span><span class="chapter-item-label">${escapeHtml(bm.label)}</span>`;
+      item.addEventListener("click", () => {
+        navigate(bm.turn, { hideActiveBlocks: true });
+        chapterWrap.classList.remove("open");
+      });
+      chapterMenu.appendChild(item);
+
+      // Duplicate for more-popover
+      const item2 = document.createElement("div");
+      item2.className = "chapter-item";
+      item2.innerHTML = item.innerHTML;
+      item2.addEventListener("click", () => {
+        navigate(bm.turn, { hideActiveBlocks: true });
+        moreWrap.classList.remove("open");
+      });
+      moreChapterList.appendChild(item2);
+    }
+
+    chapterBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const wasOpen = chapterWrap.classList.contains("open");
+      closeAllPopovers();
+      if (!wasOpen) chapterWrap.classList.add("open");
+    });
+  }
+
+  function stableSessionHash(value) {
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i++) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  }
+  const firstTurn = TURNS[0] || {};
+  const SESSION_STORAGE_ID = stableSessionHash([
+    document.title,
+    firstTurn.timestamp || "",
+    String(firstTurn.user_text || "").slice(0, 500)
+  ].join("|"));
+  const LIVE_STATE_KEY = "claude-replay-live-state:" + SESSION_STORAGE_ID;
+  const NOTES_STATE_KEY = "claude-replay-notes:" + SESSION_STORAGE_ID;
+  const INLINE_NOTES_KEY = "claude-replay-inline-notes:" + SESSION_STORAGE_ID;
+  let bootReplayLiveState = null;
+  try { bootReplayLiveState = JSON.parse(localStorage.getItem(LIVE_STATE_KEY) || "null"); } catch (_) {}
+
+  // Init
+  transcript.textContent = "";
+  transcript.style.opacity = "";
+  renderAllTurns();
+  if (pacedWording) {
+    preparePacedWording();
+    pacedWordingTiming = computePacedWordingTiming();
+    sessionStart = pacedWordingTiming.start;
+    turnStartTimes = pacedWordingTiming.starts;
+    turnEndTimes = pacedWordingTiming.ends;
+    sessionTotalMs = pacedWordingTiming.total;
+    usePaced = true;
+  }
+  document.body.dataset.playbackMode = pacedWording ? "paced-wording" : "sections";
+  document.body.dataset.readingWpm = String(readingWpm);
+  applyVisibility();
+  const hashMatch = location.hash.match(/turn=(\d+)(r)?/);
+  const preserveReadingPosition = bootReplayLiveState && bootReplayLiveState.followLive === false;
+  if (preserveReadingPosition) {
+    hideSplash();
+    showUpTo(TURNS.length, { hideActiveBlocks: false, skipScroll: true });
+  } else if (hashMatch) {
+    const startTurn = Math.min(parseInt(hashMatch[1], 10), TURNS.length);
+    const reveal = hashMatch[2] === "r";
+    if (startTurn > 0) {
+      hideSplash();
+      if (reveal) {
+        // Watch/live mode: instant scroll, no animation, suppress scroll activation
+        showUpTo(startTurn, { hideActiveBlocks: false, skipScroll: true });
+        scrollProtectUntil = Date.now() + 2000;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const el = turnElements()[startTurn - 1];
+            if (el) {
+              const barH = getControlsHeight();
+              const viewH = window.innerHeight - barH;
+              const target = el.querySelector(".block-wrapper:last-child") || el;
+              const absBottom = target.getBoundingClientRect().bottom + window.scrollY;
+              window.scrollTo(0, Math.max(0, absBottom - viewH + PEEK_OFFSET));
+            }
+          });
+        });
+      } else {
+        // Normal deep link: animated scroll, blocks hidden
+        showUpTo(startTurn, { hideActiveBlocks: true });
+      }
+    }
+    // else: turn=0 means splash, which is already visible
+  }
+  // else: splash is visible, currentTurn = 0, progress at 0%
+  updateProgress();
+
+  // React to hash changes (e.g. from parent editor iframe control)
+  let lastProcessedHash = location.hash;
+  window.addEventListener("hashchange", () => {
+    if (location.hash === lastProcessedHash) return;
+    lastProcessedHash = location.hash;
+    const m = location.hash.match(/turn=(\d+)(r)?/);
+    if (!m) return;
+    const target = Math.min(parseInt(m[1], 10), TURNS.length);
+    const rev = m[2] === "r";
+    if (target > 0) {
+      stopPlay();
+      hideSplash();
+      showUpTo(target, { hideActiveBlocks: !rev });
+    }
+  });
+
+  $("#splash-play").addEventListener("click", () => startPlay());
+
+  // ═══════════════════════════════════════════
+  // § FILE ACTIVITY SIDEBAR
+  // ═══════════════════════════════════════════
+
+  const fileSidebar = $("#fileSidebar");
+  const fileSidebarList = $("#fileSidebarList");
+  const fileSidebarToggle = $("#fileSidebarToggle");
+  const fileSidebarCount = $("#fileSidebarCount");
+
+  // File activity sidebar — uses pre-computed FILES data
+
+  if (FILES.length > 0) {
+    // Calculate sidebar width based on content (min 180, max 260)
+    const maxNameLen = Math.max(...FILES.map((f) => f.name.length));
+    const sidebarWidth = Math.min(260, Math.max(180, maxNameLen * 8 + 70));
+    fileSidebar.style.width = sidebarWidth + "px";
+    const style = document.createElement("style");
+    style.textContent = "body.sidebar-open .transcript { margin-right: " + sidebarWidth + "px; }";
+    document.head.appendChild(style);
+
+    fileSidebarToggle.style.display = "";
+    $("#fileSidebarToggle2Wrap").style.display = "";
+    fileSidebarCount.textContent = "(" + FILES.length + ")";
+
+    let html = "";
+    for (const file of FILES) {
+      const tools = new Set(file.refs.map((r) => r.tool));
+      const badge = file.refs.length > 1 ? `<span class="file-entry-badge">${file.refs.length}</span>` : "";
+      html += `<div class="file-entry" data-path="${escapeHtml(file.path)}">`;
+      const displayPath = file.relPath || file.path;
+      const dir = displayPath.includes("/") ? displayPath.slice(0, displayPath.lastIndexOf("/")) : "";
+      html += `<div class="file-entry-header"><span class="file-entry-chevron">&#9654;</span><span class="file-entry-name" title="${escapeHtml(file.path)}"><span class="file-entry-name-main">${escapeHtml(file.name)}</span>${dir ? `<span class="file-entry-name-path">${escapeHtml(dir)}</span>` : ""}</span>${badge}</div>`;
+      html += `<div class="file-entry-refs">`;
+      for (const ref of file.refs) {
+        html += `<a class="file-entry-ref" data-turn="${ref.turn}" data-block="${ref.block}"><span class="ref-tool">${ref.tool}</span> in turn ${ref.turn}</a>`;
+      }
+      html += `</div></div>`;
+    }
+    fileSidebarList.innerHTML = html;
+
+    // Toggle expand/collapse file entries
+    fileSidebarList.addEventListener("click", (e) => {
+      const header = e.target.closest(".file-entry-header");
+      if (header) {
+        header.closest(".file-entry").classList.toggle("expanded");
+        return;
+      }
+      const ref = e.target.closest(".file-entry-ref");
+      if (ref) {
+        const turnIdx = parseInt(ref.dataset.turn);
+        if (turnIdx > 0) {
+          navigate(turnIdx, { hideActiveBlocks: false });
+          scrollProtectUntil = Date.now() + 2000;
+          // Expand the matching tool block (and its parent group if grouped)
+          const filePath = ref.closest(".file-entry")?.dataset.path;
+          const toolName = ref.querySelector(".ref-tool")?.textContent;
+          if (filePath) {
+            const turnEl = turnElements()[turnIdx - 1];
+            if (turnEl) {
+              const fileName = filePath.split("/").pop();
+              for (const tb of turnEl.querySelectorAll(".tool-block")) {
+                const nameEl = tb.querySelector(".tool-name");
+                const previewEl = tb.querySelector(".tool-args-preview");
+                if (nameEl && previewEl && nameEl.textContent === toolName && previewEl.textContent.includes(fileName)) {
+                  // Expand parent tool-group if exists
+                  const group = tb.closest(".tool-group");
+                  if (group) group.classList.add("open");
+                  tb.classList.add("open");
+                  break;
+                }
+              }
+            }
+          }
+          if (window.innerWidth <= 700) fileSidebar.classList.remove("open");
+        }
+      }
+    });
+  }
+
+  // Toggle sidebar
+  function toggleFileSidebar(open) {
+    const show = open !== undefined ? open : !fileSidebar.classList.contains("open");
+    if (show) fileSidebar.style.bottom = getControlsHeight() + "px";
+    fileSidebar.classList.toggle("open", show);
+    document.body.classList.toggle("sidebar-open", show);
+  }
+  fileSidebarToggle.addEventListener("click", () => toggleFileSidebar());
+  $("#fileSidebarToggle2").addEventListener("click", (e) => {
+    e.preventDefault();
+    closeAllPopovers();
+    toggleFileSidebar();
+  });
+  $("#fileSidebarClose").addEventListener("click", () => toggleFileSidebar(false));
+
+  // Highlight files touched by current turn — poll on interval when sidebar is open
+  if (FILES.length > 0) {
+    // Build turn → paths lookup from pre-computed FILES data
+    const turnToFiles = new Map();
+    for (const file of FILES) {
+      for (const ref of file.refs) {
+        if (!turnToFiles.has(ref.turn)) turnToFiles.set(ref.turn, new Set());
+        turnToFiles.get(ref.turn).add(file.path);
+      }
+    }
+    let lastHighlightedTurn = -1;
+    setInterval(() => {
+      if (!fileSidebar.classList.contains("open")) return;
+      if (currentTurn === lastHighlightedTurn) return;
+      lastHighlightedTurn = currentTurn;
+      const touchedPaths = turnToFiles.get(currentTurn) || new Set();
+      for (const entry of fileSidebarList.querySelectorAll(".file-entry-header")) {
+        const path = entry.closest(".file-entry").dataset.path;
+        entry.classList.toggle("active", touchedPaths.has(path));
+      }
+    }, 300);
+  }
+
+  // Preserve the reader's exact working context across --watch page reloads.
+  // Known items restore their explicit open/closed state. Newly appended code
+  // edits keep the normal auto-open behavior, while new Markdown edits remain
+  // collapsed.
+  function captureReplayLiveState() {
+    const tools = [...document.querySelectorAll(".tool-block[data-tool-key]")];
+    const groups = [...document.querySelectorAll(".tool-group[data-group-key]")];
+    const turns = [...document.querySelectorAll(".turn[data-index]")];
+    const activeTurn = document.querySelector(".turn.active");
+    const activeBlock = document.querySelector(".block-wrapper.block-active");
+    const activeBlockTurn = activeBlock?.closest(".turn");
+    const state = {
+      knownTools: tools.map((el) => el.dataset.toolKey),
+      openTools: tools.filter((el) => el.classList.contains("open")).map((el) => el.dataset.toolKey),
+      knownGroups: groups.map((el) => el.dataset.groupKey),
+      openGroups: groups.filter((el) => el.classList.contains("open")).map((el) => el.dataset.groupKey),
+      knownTurns: turns.map((el) => el.dataset.index),
+      collapsedTurns: turns.filter((el) => el.classList.contains("collapsed")).map((el) => el.dataset.index),
+      sidebarOpen: fileSidebar.classList.contains("open"),
+      legendCollapsed: document.getElementById("activityLegend").classList.contains("collapsed"),
+      notesCollapsed: document.getElementById("replayNotes").classList.contains("collapsed"),
+      activeTurn: activeTurn?.dataset.index || null,
+      activeBlock: activeBlock ? { turn: activeBlockTurn?.dataset.index || null, block: activeBlock.dataset.blockIdx || null } : null,
+      followLive: !window.replayReadingPaused && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 140,
+      scrollY: window.scrollY
+    };
+    try { localStorage.setItem(LIVE_STATE_KEY, JSON.stringify(state)); } catch (_) {}
+  }
+
+  function restoreReplayLiveState() {
+    let state;
+    try { state = JSON.parse(localStorage.getItem(LIVE_STATE_KEY) || "null"); } catch (_) { return; }
+    if (!state) return;
+    const knownTools = new Set(state.knownTools || []);
+    const openTools = new Set(state.openTools || []);
+    for (const el of document.querySelectorAll(".tool-block[data-tool-key]")) {
+      if (knownTools.has(el.dataset.toolKey)) el.classList.toggle("open", openTools.has(el.dataset.toolKey));
+    }
+    const knownGroups = new Set(state.knownGroups || []);
+    const openGroups = new Set(state.openGroups || []);
+    for (const el of document.querySelectorAll(".tool-group[data-group-key]")) {
+      if (knownGroups.has(el.dataset.groupKey)) el.classList.toggle("open", openGroups.has(el.dataset.groupKey));
+    }
+    const knownTurns = new Set(state.knownTurns || []);
+    const collapsedTurns = new Set(state.collapsedTurns || []);
+    for (const el of document.querySelectorAll(".turn[data-index]")) {
+      if (knownTurns.has(el.dataset.index)) el.classList.toggle("collapsed", collapsedTurns.has(el.dataset.index));
+    }
+    toggleFileSidebar(Boolean(state.sidebarOpen));
+    document.getElementById("activityLegend").classList.add("collapsed");
+    document.getElementById("replayNotes").classList.add("collapsed");
+    if (state.activeTurn) {
+      for (const el of document.querySelectorAll(".turn.active")) el.classList.remove("active");
+      const savedTurn = document.querySelector(`.turn[data-index="${CSS.escape(String(state.activeTurn))}"]`);
+      if (savedTurn) savedTurn.classList.add("active");
+    }
+    if (state.activeBlock?.turn != null && state.activeBlock?.block != null) {
+      for (const el of document.querySelectorAll(".block-wrapper.block-active")) el.classList.remove("block-active");
+      const savedBlock = document.querySelector(`.turn[data-index="${CSS.escape(String(state.activeBlock.turn))}"] .block-wrapper[data-block-idx="${CSS.escape(String(state.activeBlock.block))}"]`);
+      if (savedBlock) savedBlock.classList.add("block-active");
+    }
+    window.replayReadingPaused = state.followLive === false;
+    const scrollTarget = () => state.followLive
+      ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+      : (Number(state.scrollY) || 0);
+    setTimeout(() => window.scrollTo(0, scrollTarget()), 80);
+    setTimeout(() => window.scrollTo(0, scrollTarget()), 240);
+  }
+
+  const replayNotes = document.getElementById("replayNotes");
+  const replayNotesText = document.getElementById("replayNotesText");
+  const replayMarkerStatus = document.getElementById("replayMarkerStatus");
+  let notesSaveTimer = null;
+
+  function readInlineNotes() {
+    try { return JSON.parse(localStorage.getItem(INLINE_NOTES_KEY) || "{}") || {}; } catch (_) { return {}; }
+  }
+
+  function writeInlineNotes(value) {
+    try { localStorage.setItem(INLINE_NOTES_KEY, JSON.stringify(value)); } catch (_) {}
+  }
+
+  function noteIdentity(header, index) {
+    const turn = header.closest(".turn");
+    const turnId = turn?.dataset.index || "0";
+    const wrapper = header.closest(".block-wrapper");
+    if (header.classList.contains("collapsible-wrap")) return { key: "long:" + turnId + ":" + (wrapper?.dataset.blockIdx ?? index) + ":" + index, label: "Long content in turn " + turnId };
+    const tool = header.closest(".tool-block[data-tool-key]");
+    if (tool) return { key: "tool:" + tool.dataset.toolKey, label: header.textContent.trim() };
+    const group = header.closest(".tool-group[data-group-key]");
+    if (group) return { key: "group:" + group.dataset.groupKey, label: header.textContent.trim() };
+    if (header.classList.contains("turn-header")) return { key: "turn:" + turnId, label: "Turn " + turnId };
+    return { key: "block:" + turnId + ":" + (wrapper?.dataset.blockIdx ?? index), label: header.textContent.trim() || ("Block " + index) };
+  }
+
+  function installInlineNotes() {
+    const headers = [...document.querySelectorAll(".turn-header, .tool-header, .tool-group-header, .thinking-header, .collapsible-wrap")];
+    headers.forEach((header, index) => {
+      if (header.querySelector(":scope > .section-note-add")) return;
+      const identity = noteIdentity(header, index);
+      const button = document.createElement("button");
+      button.className = "section-note-add";
+      button.type = "button";
+      button.textContent = "+";
+      button.title = "Add a note to this section";
+      button.dataset.noteKey = identity.key;
+      if (readInlineNotes()[identity.key]?.text) button.classList.add("has-note");
+      button.addEventListener("click", (event) => {
+        event.preventDefault(); event.stopPropagation();
+        window.replayReadingPaused = true;
+        const existingEditor = header.nextElementSibling?.classList.contains("section-note-editor") ? header.nextElementSibling : null;
+        if (existingEditor) { existingEditor.remove(); return; }
+        const saved = readInlineNotes()[identity.key] || {};
+        const editor = document.createElement("div");
+        editor.className = "section-note-editor";
+        editor.innerHTML = `<textarea placeholder="Note for ${escapeHtml(identity.label)}"></textarea><div class="section-note-actions"><button type="button" class="delete">DELETE</button><button type="button" class="save">SAVE NOTE</button></div>`;
+        const textarea = editor.querySelector("textarea");
+        textarea.value = saved.text || "";
+        editor.querySelector(".save").addEventListener("click", () => {
+          const notes = readInlineNotes();
+          const text = textarea.value.trim();
+          if (text) notes[identity.key] = { text, label: identity.label, updatedAt: new Date().toISOString() };
+          else delete notes[identity.key];
+          writeInlineNotes(notes); button.classList.toggle("has-note", Boolean(text)); editor.remove();
+        });
+        editor.querySelector(".delete").addEventListener("click", () => {
+          const notes = readInlineNotes(); delete notes[identity.key]; writeInlineNotes(notes); button.classList.remove("has-note"); editor.remove();
+        });
+        header.insertAdjacentElement("afterend", editor);
+        textarea.focus();
+      });
+      header.appendChild(button);
+    });
+  }
+
+  function readNotesState() {
+    try { return JSON.parse(localStorage.getItem(NOTES_STATE_KEY) || "{}") || {}; } catch (_) { return {}; }
+  }
+
+  function writeNotesState(next) {
+    try { localStorage.setItem(NOTES_STATE_KEY, JSON.stringify(next)); } catch (_) {}
+  }
+
+  function findMarkerElement(marker) {
+    if (!marker?.turn) return null;
+    const turn = document.querySelector(`.turn[data-index="${CSS.escape(String(marker.turn))}"]`);
+    if (!turn) return null;
+    if (marker.block != null) {
+      return turn.querySelector(`.block-wrapper[data-block-idx="${CSS.escape(String(marker.block))}"]`) || turn;
+    }
+    return turn;
+  }
+
+  function renderSavedMarker() {
+    for (const el of document.querySelectorAll(".reader-marker")) el.classList.remove("reader-marker");
+    const saved = readNotesState();
+    const marker = saved.marker;
+    const target = findMarkerElement(marker);
+    if (!marker || !target) {
+      replayMarkerStatus.textContent = "No saved marker yet";
+      return;
+    }
+    target.classList.add("reader-marker");
+    const blockText = marker.block == null ? "" : `  BLOCK ${Number(marker.block) + 1}`;
+    replayMarkerStatus.textContent = `MARKED TURN ${marker.turn}${blockText}`;
+  }
+
+  function nearestReadingBlock() {
+    const targetY = Math.max(100, window.innerHeight * 0.36);
+    const candidates = [...document.querySelectorAll(".block-wrapper:not(.block-hidden)")];
+    let best = null;
+    let bestDistance = Infinity;
+    for (const el of candidates) {
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
+      const distance = Math.abs((rect.top + Math.min(rect.height, 120) * 0.5) - targetY);
+      if (distance < bestDistance) { best = el; bestDistance = distance; }
+    }
+    return best;
+  }
+
+  function markReadingPlace() {
+    const block = nearestReadingBlock();
+    const turn = block?.closest(".turn") || document.querySelector(".turn.active");
+    if (!turn) return;
+    const saved = readNotesState();
+    saved.text = replayNotesText.value;
+    saved.marker = {
+      turn: turn.dataset.index,
+      block: block?.dataset.blockIdx ?? null,
+      scrollY: window.scrollY,
+      savedAt: new Date().toISOString()
+    };
+    writeNotesState(saved);
+    window.replayReadingPaused = true;
+    renderSavedMarker();
+    captureReplayLiveState();
+  }
+
+  function goToReadingMark() {
+    const marker = readNotesState().marker;
+    const target = findMarkerElement(marker);
+    if (!target) return;
+    window.replayReadingPaused = true;
+    scrollProtectUntil = Date.now() + 2500;
+    const turn = target.closest(".turn");
+    if (turn) {
+      for (const el of document.querySelectorAll(".turn.active")) el.classList.remove("active");
+      turn.classList.add("active");
+    }
+    if (target.classList.contains("block-wrapper")) {
+      for (const el of document.querySelectorAll(".block-wrapper.block-active")) el.classList.remove("block-active");
+      target.classList.add("block-active");
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(captureReplayLiveState, 500);
+  }
+
+  const initialNotes = readNotesState();
+  replayNotesText.value = initialNotes.text || "";
+  replayNotesText.addEventListener("input", () => {
+    window.replayReadingPaused = true;
+    clearTimeout(notesSaveTimer);
+    notesSaveTimer = setTimeout(() => {
+      const saved = readNotesState();
+      saved.text = replayNotesText.value;
+      writeNotesState(saved);
+    }, 180);
+  });
+  document.getElementById("replayNotesHeader").addEventListener("click", () => {
+    replayNotes.classList.toggle("collapsed");
+    document.getElementById("replayExportZip").style.right = replayNotes.classList.contains("collapsed") ? "105px" : "270px";
+    setTimeout(captureReplayLiveState, 0);
+  });
+  document.getElementById("replayMarkPlace").addEventListener("click", markReadingPlace);
+  document.getElementById("replayGoToMark").addEventListener("click", goToReadingMark);
+  installInlineNotes();
+  renderSavedMarker();
+
+  document.getElementById("replayExportZip").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    const sessionId = window.AGENT_REPLAY_SESSION_ID;
+    if (!sessionId) { button.textContent = "LIBRARY ONLY"; return; }
+    const tabNotes = (() => { try { return JSON.parse(localStorage.getItem("agent-replay-tab-notes") || "{}") || {}; } catch (_) { return {}; } })();
+    const payload = {
+      sessionId,
+      sessionNote: readNotesState(),
+      sectionNotes: readInlineNotes(),
+      tabNote: tabNotes[sessionId] || ""
+    };
+    button.disabled = true; button.textContent = "BUILDING ZIP";
+    try {
+      const response = await fetch("/api/export", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      if (!response.ok) throw new Error(await response.text());
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob); link.download = match?.[1] || "agent-session.zip";
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      button.textContent = "EXPORTED";
+    } catch (_) { button.textContent = "EXPORT FAILED"; }
+    setTimeout(() => { button.disabled = false; button.textContent = "EXPORT ZIP"; }, 1800);
+  });
+
+  function closeToolPeers(tool) {
+    if (!tool) return;
+    const scope = tool.parentElement;
+    if (!scope) return;
+    for (const peer of scope.children) {
+      if (peer !== tool && peer.classList?.contains("tool-block")) peer.classList.remove("open", "trace-focus");
+    }
+  }
+
+  function closeGroupPeers(group) {
+    const assistant = group?.closest(".role-section.role-assistant");
+    if (!assistant) return;
+    for (const peer of assistant.querySelectorAll(".tool-group.open")) {
+      if (peer !== group) peer.classList.remove("open", "trace-focus");
+    }
+  }
+
+  window.captureReplayLiveState = captureReplayLiveState;
+  window.addEventListener("beforeunload", captureReplayLiveState);
+  document.addEventListener("click", (event) => {
+    const toolHeader = event.target.closest(".tool-header");
+    const groupHeader = event.target.closest(".tool-group-header");
+    if (toolHeader && !event.target.closest(".section-note-add")) setTimeout(() => closeToolPeers(toolHeader.closest(".tool-block")), 0);
+    if (groupHeader && !event.target.closest(".section-note-add")) setTimeout(() => closeGroupPeers(groupHeader.closest(".tool-group")), 0);
+    if (event.target.closest(".tool-header, .tool-group-header, .thinking-header, .turn-header, .collapsible-toggle, .replay-notes, .activity-legend, #fileSidebarToggle, #fileSidebarToggle2, #fileSidebarClose")) {
+      window.replayReadingPaused = true;
+      setTimeout(captureReplayLiveState, 0);
+    }
+  });
+  let liveStateScrollTimer;
+  window.addEventListener("scroll", () => {
+    clearTimeout(liveStateScrollTimer);
+    liveStateScrollTimer = setTimeout(captureReplayLiveState, 150);
+  }, { passive: true });
+  restoreReplayLiveState();
+
+  document.body.dataset.ready = "1";
+})();
+</script>
+</body>
+</html>

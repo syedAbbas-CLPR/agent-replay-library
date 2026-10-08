@@ -1,0 +1,19 @@
+{
+  "bg": "#000000",
+  "bg-surface": "#090909",
+  "bg-hover": "#151515",
+  "text": "#f5f5f5",
+  "text-dim": "#a3a3a3",
+  "text-bright": "#ffffff",
+  "accent": "#ffffff",
+  "accent-dim": "#525252",
+  "green": "#7CFF6B",
+  "blue": "#60A5FA",
+  "orange": "#FBBF24",
+  "red": "#FF5A5F",
+  "cyan": "#E5E5E5",
+  "border": "#292929",
+  "tool-bg": "#080808",
+  "thinking-bg": "#050505",
+  "extraCss": ".transcript{max-width:1000px;margin:0 auto}.role-section{background:#050505;border:1px solid #1f1f1f}.role-section.role-user{background:#0a0a0a;border-left:3px solid #fff}.role-section.role-assistant{background:#030303;border-left:3px solid #737373}.role-label{color:#fff!important}.assistant-text,.user-text{color:#fff}.turn-header{background:#080808;color:#d4d4d4}.controls{background:#050505}.tool-header{min-height:38px}.tool-args-preview{color:#b8b8b8}.tool-input{color:#e5e5e5}.tool-result{background:#010101}.thinking-block{background:#050505;padding:8px 10px;border:1px solid #202020;border-left:3px solid #737373;border-radius:4px}"
+}

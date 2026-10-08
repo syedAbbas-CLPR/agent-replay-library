@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+invoked_name="$(basename "$0")"
+default_kind="auto"
+[[ "$invoked_name" == "claude-replay-live" ]] && default_kind="claude"
+[[ "$invoked_name" == "codex-replay-live" ]] && default_kind="codex"
+agent_kind="${1:-$default_kind}"
+if [[ "$agent_kind" =~ ^[0-9]+$ ]]; then
+  replay_port="$agent_kind"
+  agent_kind="$default_kind"
+else
+  replay_port="${2:-7332}"
+fi
+
+case "$agent_kind" in
+  claude)
+    search_roots=("$HOME/.claude/projects")
+    ;;
+  codex)
+    search_roots=("$HOME/.codex/sessions")
+    ;;
+  auto)
+    search_roots=("$HOME/.claude/projects" "$HOME/.codex/sessions")
+    ;;
+  *)
+    if [[ -f "$agent_kind" ]]; then
+      export CLAUDE_REPLAY_CODE_ONLY="${CLAUDE_REPLAY_CODE_ONLY:-0}"
+      theme_file="$HOME/.config/claude-replay/high-contrast.json"
+      exec claude-replay "$agent_kind" --serve --watch --port "$replay_port" --theme-file "$theme_file" --no-minify
+    fi
+    echo "Usage: agent-replay-live [claude|codex|/path/to/session.jsonl] [port]" >&2
+    exit 2
+    ;;
+esac
+
+latest_session=""
+latest_modified=0
+for search_root in "${search_roots[@]}"; do
+  [[ -d "$search_root" ]] || continue
+  while IFS= read -r -d '' candidate; do
+    candidate_modified="$(stat -f '%m' "$candidate")"
+    if (( candidate_modified > latest_modified )); then
+      latest_modified="$candidate_modified"
+      latest_session="$candidate"
+    fi
+  done < <(find "$search_root" -type f -name '*.jsonl' -print0)
+done
+
+if [[ -z "$latest_session" ]]; then
+  echo "No $agent_kind session JSONL file was found." >&2
+  exit 1
+fi
+
+echo "Watching $latest_session"
+echo "Replay URL: http://127.0.0.1:$replay_port"
+export CLAUDE_REPLAY_CODE_ONLY="${CLAUDE_REPLAY_CODE_ONLY:-0}"
+theme_file="$HOME/.config/claude-replay/high-contrast.json"
+exec claude-replay "$latest_session" --serve --watch --port "$replay_port" --theme-file "$theme_file" --no-minify
