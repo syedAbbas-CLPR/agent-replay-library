@@ -1199,7 +1199,36 @@ body.in-iframe .more-open-link + hr.more-divider { display: block; }
 .reader-search-count { min-width:64px; color:#aaa; font-size:10px; text-align:center; }
 mark.replay-search-hit { color:#000; background:#fde047; border-radius:2px; padding:0 1px; }
 mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; outline-offset:2px; }
-.trace-focus { outline:2px solid #fff!important; outline-offset:4px; opacity:1!important; }
+.trace-focus {
+  position:relative;
+  z-index:2;
+  outline:3px solid #facc15!important;
+  outline-offset:5px;
+  box-shadow:0 0 0 1px #000,0 0 26px rgba(250,204,21,.34)!important;
+  opacity:1!important;
+}
+.trace-focus::after {
+  content:"CURRENT";
+  position:absolute;
+  right:8px;
+  top:-18px;
+  padding:2px 6px;
+  border-radius:3px 3px 0 0;
+  background:#facc15;
+  color:#000;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.8px;
+  pointer-events:none;
+}
+.trace-leaving { outline:2px solid #525252!important; outline-offset:4px; opacity:.68!important; transition:outline-color .18s ease,opacity .18s ease!important; }
+.trace-skip-flash { animation:trace-skip-pass .4s ease-out both; }
+@keyframes trace-skip-pass {
+  0% { outline:1px solid transparent; outline-offset:1px; filter:brightness(1); }
+  40% { outline:2px solid #60a5fa; outline-offset:3px; filter:brightness(1.55); }
+  100% { outline:1px solid transparent; outline-offset:5px; filter:brightness(1); }
+}
+@media(prefers-reduced-motion:reduce) { .trace-leaving,.trace-skip-flash { animation:none!important; transition:none!important; } }
 .keyboard-hint { color:#777; font-size:9px; white-space:nowrap; }
 @media(max-width:760px) { .keyboard-hint,.trace-mode-button { display:none!important; } }
 
@@ -3200,8 +3229,95 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
   let lastJumpedBlock = null;
   let lastPromptTarget = null;
   let keyboardAnchorAtPrompt = false;
+  const traceCloseTimers = new WeakMap();
+  let traceCenterToken = 0;
+
+  function traceBody(el) {
+    if (!el) return null;
+    if (el.classList.contains("tool-group")) return el.querySelector(":scope > .tool-group-body");
+    if (el.classList.contains("tool-block")) return el.querySelector(":scope > .tool-body");
+    if (el.classList.contains("thinking-block")) return el.querySelector(":scope > .thinking-body");
+    return null;
+  }
+
+  function clearTraceClose(el) {
+    if (!el) return;
+    const timer = traceCloseTimers.get(el);
+    if (timer) clearTimeout(timer);
+    traceCloseTimers.delete(el);
+    el.classList.remove("trace-leaving");
+    const body = traceBody(el);
+    if (body) {
+      body.style.removeProperty("height");
+      body.style.removeProperty("opacity");
+      body.style.removeProperty("overflow");
+      body.style.removeProperty("transition");
+      body.style.removeProperty("display");
+    }
+  }
+
+  function closeTraceElementAnimated(el) {
+    if (!el) return;
+    clearTraceClose(el);
+    el.classList.remove("trace-focus");
+    if (!el.classList.contains("open") || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.classList.remove("open", "trace-leaving");
+      return;
+    }
+    const body = traceBody(el);
+    if (!body) { el.classList.remove("open"); return; }
+    el.classList.add("trace-leaving");
+    body.style.display = "block";
+    body.style.height = body.scrollHeight + "px";
+    body.style.opacity = "1";
+    body.style.overflow = "hidden";
+    body.style.transition = "height .28s ease, opacity .22s ease";
+    body.getBoundingClientRect();
+    requestAnimationFrame(() => {
+      body.style.height = "0px";
+      body.style.opacity = ".18";
+    });
+    const timer = setTimeout(() => {
+      el.classList.remove("open", "trace-leaving");
+      clearTraceClose(el);
+    }, 300);
+    traceCloseTimers.set(el, timer);
+  }
+
+  function flashSkippedTraceBlocks(from, to, dir) {
+    if (!from || !to || from === to) return;
+    const nodes = [...document.querySelectorAll(".thinking-block,.tool-group,.tool-block")];
+    const a = nodes.indexOf(from), b = nodes.indexOf(to);
+    if (a < 0 || b < 0) return;
+    const between = dir > 0 ? nodes.slice(a + 1, b) : nodes.slice(b + 1, a).reverse();
+    const skipped = between.filter(el => el.classList.contains("tool-block") && !el.matches(".activity-code-edit,.activity-md-edit"));
+    skipped.slice(0, 12).forEach((el, index) => setTimeout(() => {
+      el.classList.remove("trace-skip-flash");
+      el.getBoundingClientRect();
+      el.classList.add("trace-skip-flash");
+      setTimeout(() => el.classList.remove("trace-skip-flash"), 420);
+    }, index * 22));
+  }
+
+  function keepTraceTargetCentered(target) {
+    const token = ++traceCenterToken;
+    const started = performance.now();
+    target.scrollIntoView({ behavior:"smooth", block:"center" });
+    function settle(now) {
+      if (token !== traceCenterToken || lastJumpedBlock !== target || now - started > 680) return;
+      const rect = target.getBoundingClientRect();
+      const tall = rect.height > window.innerHeight * .72;
+      const targetY = tall ? rect.top + Math.min(110, rect.height * .16) : rect.top + rect.height * .5;
+      const desiredY = window.innerHeight * (tall ? .30 : .48);
+      const delta = targetY - desiredY;
+      if (Math.abs(delta) > 1) window.scrollBy({ top: delta * .32, behavior:"auto" });
+      requestAnimationFrame(settle);
+    }
+    requestAnimationFrame(settle);
+  }
 
   function resetKeyboardNavigationCursor(closeFocused = false) {
+    traceCenterToken++;
     if (closeFocused && lastJumpedBlock) {
       lastJumpedBlock.classList.remove("open");
       lastJumpedBlock.closest(".tool-group")?.classList.remove("open");
@@ -3220,6 +3336,8 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
 
   function exposeTarget(target, openTarget = true) {
     if (!target) return;
+    clearTraceClose(target);
+    clearTraceClose(target.closest(".tool-group"));
     hideSplash();
     const turn = target.closest(".turn");
     if (turn) {
@@ -3237,16 +3355,16 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
     }
   }
 
-  function focusTraceTarget(target) {
+  function focusTraceTarget(target, dir = 1) {
     if (!target) return;
     if (lastJumpedBlock && lastJumpedBlock !== target) {
       const previous = lastJumpedBlock;
+      flashSkippedTraceBlocks(previous, target, dir);
       previous.classList.remove("trace-focus");
-      if (previous.classList.contains("thinking-block")) previous.classList.remove("open");
-      if (previous.classList.contains("tool-block")) previous.classList.remove("open");
       const oldGroup = previous.classList.contains("tool-group") ? previous : previous.closest(".tool-group");
       const targetStaysInOldGroup = oldGroup && (target === oldGroup || oldGroup.contains(target));
-      if (oldGroup && !targetStaysInOldGroup) oldGroup.classList.remove("open");
+      if (oldGroup && !targetStaysInOldGroup) closeTraceElementAnimated(oldGroup);
+      else if (previous.classList.contains("thinking-block") || previous.classList.contains("tool-block")) closeTraceElementAnimated(previous);
     }
     exposeTarget(target, true);
     if (target.classList.contains("tool-block")) closeToolPeers(target);
@@ -3255,13 +3373,14 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
     lastJumpedBlock = target;
     keyboardAnchorAtPrompt = false;
     scrollProtectUntil = Date.now() + 1800;
-    target.scrollIntoView({ behavior:"smooth", block:"center" });
+    keepTraceTargetCentered(target);
     window.replayReadingPaused = true;
     setTimeout(captureReplayLiveState, 400);
   }
 
   function jumpTurn(dir) {
     if (playing) stopPlay();
+    traceCenterToken++;
     if (lastJumpedBlock) {
       lastJumpedBlock.classList.remove("trace-focus", "open");
       lastJumpedBlock.closest(".tool-group")?.classList.remove("open");
@@ -3311,7 +3430,7 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
       }
     }
     index = dir > 0 ? Math.min(index + 1, blocks.length - 1) : Math.max(index - 1, 0);
-    focusTraceTarget(blocks[index]);
+    focusTraceTarget(blocks[index], dir);
   }
 
   const traceModeButton = document.getElementById("traceMode");
@@ -3981,7 +4100,7 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
     const scope = tool.parentElement;
     if (!scope) return;
     for (const peer of scope.children) {
-      if (peer !== tool && peer.classList?.contains("tool-block")) peer.classList.remove("open", "trace-focus");
+      if (peer !== tool && peer.classList?.contains("tool-block")) closeTraceElementAnimated(peer);
     }
   }
 
@@ -3989,7 +4108,7 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
     const assistant = group?.closest(".role-section.role-assistant");
     if (!assistant) return;
     for (const peer of assistant.querySelectorAll(".tool-group.open")) {
-      if (peer !== group) peer.classList.remove("open", "trace-focus");
+      if (peer !== group) closeTraceElementAnimated(peer);
     }
   }
 

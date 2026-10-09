@@ -11,7 +11,7 @@ const port = Number(process.argv[2] || 7331);
 const home = os.homedir();
 const theme = path.join(home, '.config/claude-replay/high-contrast.json');
 const cacheDir = path.join(os.tmpdir(), 'agent-replay-library-cache');
-const rendererVersion = 'library-ui-14';
+const rendererVersion = 'library-ui-16';
 fs.mkdirSync(cacheDir, { recursive: true });
 let sessionMap = new Map();
 let buildJobs = new Map();
@@ -71,9 +71,12 @@ function isSyntheticPrompt(value) {
     || (/toolu_[a-zA-Z0-9]+/.test(text) && text.includes('/private/tmp/claude-'));
 }
 function latestUserMessage(file, agent) {
-  const lines = readTail(file).split('\n');
+  const lines = readTail(file, 16 * 1024 * 1024).split('\n');
+  let fallback = '';
   for (let index = lines.length - 1; index >= 0; index--) {
     if (!lines[index].trim()) continue;
+    if (agent === 'claude' && !lines[index].includes('"type":"last-prompt"') && !lines[index].includes('"type":"user"')) continue;
+    if (agent === 'codex' && !lines[index].includes('"user_message"') && !lines[index].includes('"role":"user"')) continue;
     let obj;
     try { obj = JSON.parse(lines[index]); } catch { continue; }
     let candidate = '';
@@ -91,9 +94,13 @@ function latestUserMessage(file, agent) {
       }
     }
     candidate = withoutContext(candidate);
-    if (!isSyntheticPrompt(candidate) && !candidate.includes('<command-name>/clear</command-name>') && !candidate.includes('<local-command-caveat>')) return candidate;
+    if (!isSyntheticPrompt(candidate) && !candidate.includes('<command-name>/clear</command-name>') && !candidate.includes('<local-command-caveat>')) {
+      if (!fallback) fallback = candidate;
+      const plain = cleanText(candidate);
+      if (plain.length >= 24 || plain.split(/\s+/).length >= 4) return candidate;
+    }
   }
-  return '';
+  return fallback;
 }
 function inspectSession(file, agent, stat) {
   let sample = '';

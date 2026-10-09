@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- Animate trace blocks closed over 0.3 seconds when side-arrow navigation leaves them
+- Flash skipped command blocks for 0.4 seconds without opening them
+- Use a yellow Current marker so navigation focus is distinct from white block borders
+- Ignore one-word follow-ups when a more descriptive recent message can name the terminal
+- Keep the highlighted trace block centered while earlier blocks collapse and shift the page
+
 ## 0.2.0
 
 - Group Claude JSONL segments connected by `/clear` into one terminal timeline
