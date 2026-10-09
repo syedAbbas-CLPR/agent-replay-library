@@ -11,7 +11,7 @@ const port = Number(process.argv[2] || 7331);
 const home = os.homedir();
 const theme = path.join(home, '.config/claude-replay/high-contrast.json');
 const cacheDir = path.join(os.tmpdir(), 'agent-replay-library-cache');
-const rendererVersion = 'library-ui-13';
+const rendererVersion = 'library-ui-14';
 fs.mkdirSync(cacheDir, { recursive: true });
 let sessionMap = new Map();
 let buildJobs = new Map();
@@ -46,6 +46,55 @@ function shortTitle(text, fallback) {
   if (!cleaned) return fallback;
   return cleaned.length > 88 ? cleaned.slice(0, 85) + '...' : cleaned;
 }
+function readTail(file, maxBytes = 2 * 1024 * 1024) {
+  try {
+    const stat = fs.statSync(file);
+    const size = Math.min(stat.size, maxBytes);
+    const buffer = Buffer.alloc(size);
+    const fd = fs.openSync(file, 'r');
+    fs.readSync(fd, buffer, 0, size, stat.size - size);
+    fs.closeSync(fd);
+    let text = buffer.toString('utf8');
+    if (stat.size > size) text = text.slice(text.indexOf('\n') + 1);
+    return text;
+  } catch { return ''; }
+}
+function isSyntheticPrompt(value) {
+  const text = cleanText(value);
+  return !text
+    || /^\/(?:resume|clear)\b/i.test(text)
+    || /^(?:ok(?:ay)?[,.! ]*)?(?:yeah[,.! ]*)?(?:please )?(?:continue(?: ahead)?|go ahead|resume|keep going|great|cool|thanks)[.! ]*$/i.test(text)
+    || /^This conversation is from a different directory\. To resume, run:/i.test(text)
+    || /^Here is a list of plugins that are available but not installed\./i.test(text)
+    || /^# AGENTS\.md instructions for /i.test(text)
+    || /^Repo: \/.*Inspect /i.test(text)
+    || (/toolu_[a-zA-Z0-9]+/.test(text) && text.includes('/private/tmp/claude-'));
+}
+function latestUserMessage(file, agent) {
+  const lines = readTail(file).split('\n');
+  for (let index = lines.length - 1; index >= 0; index--) {
+    if (!lines[index].trim()) continue;
+    let obj;
+    try { obj = JSON.parse(lines[index]); } catch { continue; }
+    let candidate = '';
+    if (agent === 'claude') {
+      if (obj.type === 'last-prompt') candidate = obj.lastPrompt || '';
+      else if (obj.type === 'user' && obj.message?.content) {
+        candidate = Array.isArray(obj.message.content)
+          ? obj.message.content.filter(value => value.type === 'text').map(value => value.text || '').join(' ')
+          : obj.message.content;
+      }
+    } else {
+      if (obj.type === 'event_msg' && obj.payload?.type === 'user_message') candidate = obj.payload.message || '';
+      else if (obj.type === 'response_item' && obj.payload?.type === 'message' && obj.payload?.role === 'user') {
+        candidate = (obj.payload.content || []).filter(value => value.type === 'input_text').map(value => value.text || '').join(' ');
+      }
+    }
+    candidate = withoutContext(candidate);
+    if (!isSyntheticPrompt(candidate) && !candidate.includes('<command-name>/clear</command-name>') && !candidate.includes('<local-command-caveat>')) return candidate;
+  }
+  return '';
+}
 function inspectSession(file, agent, stat) {
   let sample = '';
   try {
@@ -58,12 +107,23 @@ function inspectSession(file, agent, stat) {
   let cwd = '';
   let prompt = '';
   let explicitTitle = '';
+  let started = 0;
+  const headLines = sample.split('\n').slice(0, 24);
+  let startsWithClear = agent === 'claude' && headLines.some(line => line.includes('<command-name>/clear</command-name>'));
+  let isWorker = false;
+  let sessionKey = path.basename(file, '.jsonl').replace(/^rollout-/, '');
   for (const line of sample.split('\n')) {
     if (!line.trim()) continue;
     let obj;
     try { obj = JSON.parse(line); } catch { continue; }
+    const rowTime = Date.parse(obj.timestamp || obj.created_at || obj.message?.timestamp || '') || 0;
+    if (rowTime && (!started || rowTime < started)) started = rowTime;
     if (agent === 'codex') {
-      if (obj.type === 'session_meta') cwd = obj.payload?.cwd || obj.cwd || cwd;
+      if (obj.type === 'session_meta') {
+        cwd = obj.payload?.cwd || obj.cwd || cwd;
+        sessionKey = obj.payload?.id || obj.payload?.session_id || obj.session_id || sessionKey;
+        isWorker = obj.payload?.thread_source === 'subagent' || Boolean(obj.payload?.source && typeof obj.payload.source === 'object' && obj.payload.source.subagent);
+      }
       if (!prompt && obj.type === 'event_msg' && obj.payload?.type === 'user_message') {
         const candidate = withoutContext(obj.payload.message || '');
         if (cleanText(candidate)) prompt = candidate;
@@ -74,6 +134,7 @@ function inspectSession(file, agent, stat) {
       }
     } else {
       cwd = obj.cwd || cwd;
+      sessionKey = obj.sessionId || sessionKey;
       if (obj.type === 'custom-title') explicitTitle = obj.customTitle || explicitTitle;
       if (obj.type === 'ai-title') explicitTitle = obj.aiTitle || explicitTitle;
       if (!prompt && obj.type === 'user' && obj.message?.content) {
@@ -89,16 +150,49 @@ function inspectSession(file, agent, stat) {
   const project = cwd ? path.basename(cwd) : path.basename(path.dirname(file));
   const fallback = agent === 'codex' ? path.basename(file, '.jsonl').replace(/^rollout-/, '') : path.basename(file, '.jsonl');
   return {
-    id: hash(file), agent, file, files: [file],
-    title: shortTitle(explicitTitle || prompt, fallback),
+    id: hash(file), agent, file, files: [file], sessionKey, isWorker,
+    title: shortTitle(explicitTitle || prompt, fallback), lastMessage: latestUserMessage(file, agent),
     project: project || 'unknown project',
+    cwd, started: started || stat.birthtimeMs || stat.mtimeMs, startsWithClear,
     modified: stat.mtimeMs,
     size: stat.size,
     active: Date.now() - stat.mtimeMs < 5 * 60 * 1000
   };
 }
+function readClaudeClearLinks(clearStartedIds) {
+  const history = path.join(home, '.claude/history.jsonl');
+  const links = new Map();
+  if (!fs.existsSync(history)) return links;
+  const rows = [];
+  try {
+    for (const line of fs.readFileSync(history, 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      try { rows.push(JSON.parse(line)); } catch {}
+    }
+  } catch { return links; }
+  for (let index = 0; index < rows.length; index++) {
+    const clear = rows[index];
+    if (String(clear.display || '').trim() !== '/clear' || !clear.sessionId) continue;
+    for (let next = index + 1; next < Math.min(rows.length, index + 80); next++) {
+      const candidate = rows[next];
+      const gap = Number(candidate.timestamp || 0) - Number(clear.timestamp || 0);
+      if (gap > 5 * 60 * 1000) break;
+      if (candidate.project !== clear.project || candidate.sessionId === clear.sessionId) continue;
+      if (clearStartedIds.has(candidate.sessionId)) {
+        links.set(candidate.sessionId, clear.sessionId);
+        break;
+      }
+    }
+  }
+  return links;
+}
+function terminalFallbackTitle(item) {
+  const date = new Date(item.started || item.modified);
+  const when = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `${item.project} · ${item.agent === 'claude' ? 'Claude' : 'Codex'} terminal · ${when}`;
+}
 function scanSessions() {
-  const found = [];
+  const segments = [];
   for (const [agent, root] of [
     ['codex', path.join(home, '.codex/sessions')],
     ['claude', path.join(home, '.claude/projects')]
@@ -129,12 +223,61 @@ function scanSessions() {
           item = { stamp, value };
           metadataCache.set(file, item);
         }
-        found.push({ ...item.value, active: Date.now() - stat.mtimeMs < 5 * 60 * 1000 });
+        if (!item.value.isWorker) segments.push({ ...item.value, active: Date.now() - stat.mtimeMs < 5 * 60 * 1000 });
       } catch {}
     }
   }
+  const byKey = new Map(segments.map(item => [item.sessionKey, item]));
+  const parentByChild = readClaudeClearLinks(new Set(segments.filter(item => item.agent === 'claude' && item.startsWithClear).map(item => item.sessionKey)));
+  function rootFor(item) {
+    let key = item.sessionKey;
+    const seen = new Set();
+    while (parentByChild.has(key) && !seen.has(key)) {
+      seen.add(key);
+      const parent = parentByChild.get(key);
+      if (!byKey.has(parent)) break;
+      key = parent;
+    }
+    return key;
+  }
+  const grouped = new Map();
+  for (const item of segments) {
+    const root = item.agent === 'claude' ? rootFor(item) : item.sessionKey;
+    const groupKey = item.agent + ':' + root;
+    if (!grouped.has(groupKey)) grouped.set(groupKey, []);
+    grouped.get(groupKey).push(item);
+  }
+  const found = [];
+  for (const members of grouped.values()) {
+    members.sort((a, b) => a.started - b.started);
+    const first = members[0];
+    const files = members.flatMap(item => item.files);
+    const mainFiles = members.map(item => item.file);
+    const value = {
+      ...first,
+      id: hash(first.agent + ':terminal:' + first.sessionKey),
+      file: first.file,
+      files,
+      mainFiles,
+      aliases: members.map(item => item.id),
+      segmentCount: members.length,
+      clears: Math.max(0, members.length - 1),
+      workerLogs: members.reduce((sum, item) => sum + (item.workerLogs || 0), 0),
+      modified: Math.max(...members.map(item => item.modified)),
+      size: members.reduce((sum, item) => sum + item.size, 0),
+      active: members.some(item => item.active)
+    };
+    value.resumeKey = members[members.length - 1].sessionKey;
+    value.cwd = members[members.length - 1].cwd || first.cwd;
+    value.title = shortTitle(members[members.length - 1].lastMessage, terminalFallbackTitle(value));
+    found.push(value);
+  }
   found.sort((a, b) => b.modified - a.modified);
-  sessionMap = new Map(found.map(item => [item.id, item]));
+  sessionMap = new Map();
+  for (const item of found) {
+    sessionMap.set(item.id, item);
+    for (const alias of item.aliases || []) sessionMap.set(alias, item);
+  }
   return found;
 }
 
@@ -203,18 +346,18 @@ function buildReplay(session) {
 }
 const shell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent Replay Library</title><style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}.app{display:grid;grid-template-columns:330px 1fr;height:100vh}.rail{display:flex;flex-direction:column;min-width:0;background:#050505;border-right:1px solid #262626}.head{padding:16px 14px 12px;border-bottom:1px solid #222}.brand{font-size:14px;font-weight:900;letter-spacing:1.2px}.sub{margin-top:3px;color:#777;font-size:10px}.search{width:100%;margin-top:12px;padding:9px 10px;background:#000;color:#fff;border:1px solid #333;border-radius:5px;outline:none}.search:focus{border-color:#fff}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:9px}.tab{padding:7px 5px;background:#0b0b0b;color:#999;border:1px solid #292929;border-radius:4px;cursor:pointer;font:inherit}.tab.on{background:#fff;color:#000;border-color:#fff;font-weight:900}.count{padding:8px 14px;color:#666;border-bottom:1px solid #171717;font-size:10px}.sessions{flex:1;overflow:auto;padding:6px}.session{position:relative;padding:10px 10px 9px;margin:2px 0;border:1px solid transparent;border-radius:6px;cursor:pointer}.session:hover{background:#0e0e0e;border-color:#292929}.session.on{background:#101010;border-color:#fff}.session-title{padding-right:12px;color:#eee;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.session-meta{display:flex;gap:7px;margin-top:6px;color:#777;font-size:9px}.agent{font-weight:900;letter-spacing:.6px}.agent.codex{color:#5eead4}.agent.claude{color:#fbbf24}.live{position:absolute;right:9px;top:11px;width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e}.empty{padding:20px;color:#777}.main{position:relative;min-width:0;background:#000}.viewer{width:100%;height:100%;border:0;background:#000}.placeholder{position:absolute;inset:0;display:grid;place-items:center;color:#666;letter-spacing:.6px}.loading{position:absolute;right:18px;top:16px;padding:7px 10px;background:#fff;color:#000;font-weight:900;border-radius:4px;display:none;z-index:2}@media(max-width:800px){.app{grid-template-columns:250px 1fr}}
-</style></head><body><div class="app"><aside class="rail"><div class="head"><div class="brand">AGENT REPLAY</div><div class="sub">Every Claude and Codex session on this machine</div><input id="search" class="search" placeholder="Search sessions or projects"><div class="tabs"><button class="tab on" data-filter="all">ALL</button><button class="tab" data-filter="codex">CODEX</button><button class="tab" data-filter="claude">CLAUDE</button></div></div><div id="count" class="count">Scanning sessions...</div><div id="sessions" class="sessions"></div></aside><main class="main"><div id="placeholder" class="placeholder">SELECT A SESSION</div><div id="loading" class="loading">LOADING SESSION</div><iframe id="viewer" class="viewer" scrolling="yes" tabindex="0" hidden></iframe></main></div><script>
+</style></head><body><div class="app"><aside class="rail"><div class="head"><div class="brand">AGENT REPLAY</div><div class="sub">One timeline for every terminal run</div><input id="search" class="search" placeholder="Search terminals or projects"><div class="tabs"><button class="tab on" data-filter="all">ALL</button><button class="tab" data-filter="codex">CODEX</button><button class="tab" data-filter="claude">CLAUDE</button></div></div><div id="count" class="count">Scanning terminals...</div><div id="sessions" class="sessions"></div></aside><main class="main"><div id="placeholder" class="placeholder">SELECT A TERMINAL</div><div id="loading" class="loading">LOADING TERMINAL</div><iframe id="viewer" class="viewer" scrolling="yes" tabindex="0" hidden></iframe></main></div><script>
 const list=document.getElementById('sessions'),viewer=document.getElementById('viewer'),loading=document.getElementById('loading'),placeholder=document.getElementById('placeholder'),search=document.getElementById('search'),count=document.getElementById('count');let sessions=[],filter='all',selected=localStorage.getItem('agent-replay-library-selected')||'';
 function ago(ms){const s=Math.max(0,Date.now()-ms),m=Math.floor(s/60000),h=Math.floor(m/60),d=Math.floor(h/24);return m<1?'now':m<60?m+'m':h<24?h+'h':d<30?d+'d':new Date(ms).toLocaleDateString()}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function render(){const q=search.value.trim().toLowerCase();const shown=sessions.filter(s=>(filter==='all'||s.agent===filter)&&(!q||(s.title+' '+s.project+' '+s.agent).toLowerCase().includes(q)));count.textContent=shown.length+' OF '+sessions.length+' SESSIONS';list.innerHTML=shown.length?shown.map(s=>'<div class="session '+(s.id===selected?'on':'')+'" data-id="'+s.id+'">'+(s.active?'<span class="live"></span>':'')+'<div class="session-title">'+esc(s.title)+'</div><div class="session-meta"><span class="agent '+s.agent+'">'+s.agent.toUpperCase()+'</span><span>'+esc(s.project)+'</span><span>'+ago(s.modified)+'</span></div></div>').join(''):'<div class="empty">No matching sessions</div>'}
+function render(){const q=search.value.trim().toLowerCase();const shown=sessions.filter(s=>(filter==='all'||s.agent===filter)&&(!q||(s.title+' '+s.project+' '+s.agent).toLowerCase().includes(q)));count.textContent=shown.length+' OF '+sessions.length+' TERMINALS';list.innerHTML=shown.length?shown.map(s=>'<div class="session '+(s.id===selected?'on':'')+'" data-id="'+s.id+'">'+(s.active?'<span class="live"></span>':'')+'<div class="session-title">'+esc(s.title)+'</div><div class="session-meta"><span class="agent '+s.agent+'">'+s.agent.toUpperCase()+'</span>'+(s.clears?'<span>'+s.clears+' CLEAR'+(s.clears===1?'':'S')+'</span>':'')+'<span>'+ago(s.modified)+'</span></div></div>').join(''):'<div class="empty">No matching terminals</div>'}
 function wireReplayScrolling(){const win=viewer.contentWindow,doc=viewer.contentDocument;if(!win||!doc)return;doc.documentElement.style.setProperty('overflow-y','auto','important');doc.body.style.setProperty('overflow-y','auto','important');doc.addEventListener('wheel',e=>{if(Math.abs(e.deltaY)<=Math.abs(e.deltaX))return;e.preventDefault();win.scrollBy(0,e.deltaY)},{passive:false,capture:true});doc.addEventListener('keydown',e=>{const amount=Math.max(120,win.innerHeight*.82);if(e.key==='PageDown'||e.key===' '){e.preventDefault();win.scrollBy(0,amount)}else if(e.key==='PageUp'){e.preventDefault();win.scrollBy(0,-amount)}else if(e.key==='ArrowDown'){e.preventDefault();win.scrollBy(0,70)}else if(e.key==='ArrowUp'){e.preventDefault();win.scrollBy(0,-70)}},true);viewer.focus()}
 function openSession(id){const s=sessions.find(x=>x.id===id);if(!s)return;selected=id;localStorage.setItem('agent-replay-library-selected',id);render();loading.style.display='block';placeholder.hidden=true;viewer.hidden=false;viewer.onload=()=>{loading.style.display='none';wireReplayScrolling()};viewer.src='/replay?id='+encodeURIComponent(id)+'#turn=999999r'}
 list.onclick=e=>{const row=e.target.closest('.session');if(row)openSession(row.dataset.id)};search.oninput=render;document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');filter=b.dataset.filter;render()});
-async function refresh(){try{const r=await fetch('/api/sessions');sessions=await r.json();render();if(!viewer.src||!sessions.some(s=>s.id===selected)){const target=sessions.find(s=>s.id===selected)||sessions[0];if(target)openSession(target.id)}}catch(e){count.textContent='SERVER UNAVAILABLE'}}refresh();setInterval(refresh,5000);
+async function refresh(){try{const r=await fetch('/api/sessions');sessions=await r.json();const target=sessions.find(s=>s.id===selected||s.aliases&&s.aliases.includes(selected));if(target&&target.id!==selected)selected=target.id;render();if(!viewer.src||!sessions.some(s=>s.id===selected)){if(target||sessions[0])openSession((target||sessions[0]).id)}}catch(e){count.textContent='SERVER UNAVAILABLE'}}refresh();setInterval(refresh,5000);
 </script></body></html>`;
 
-const rootShell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent Replay Library</title><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#000;color:#fff;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body>LOADING SESSION LIBRARY<script>fetch('/api/sessions').then(r=>r.json()).then(s=>{const remembered=localStorage.getItem('agent-replay-library-selected');const target=s.find(x=>x.id===remembered)||s[0];if(target)location.replace('/view?id='+encodeURIComponent(target.id)+'#turn=999999r');else document.body.textContent='NO SESSIONS FOUND'}).catch(()=>document.body.textContent='SESSION SERVER UNAVAILABLE')</script></body></html>`;
+const rootShell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent Replay Library</title><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#000;color:#fff;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body>LOADING TERMINAL LIBRARY<script>fetch('/api/sessions').then(r=>r.json()).then(s=>{const remembered=localStorage.getItem('agent-replay-library-selected');const target=s.find(x=>x.id===remembered||x.aliases&&x.aliases.includes(remembered))||s[0];if(target)location.replace('/view?id='+encodeURIComponent(target.id)+'#turn=999999r');else document.body.textContent='NO TERMINALS FOUND'}).catch(()=>document.body.textContent='TERMINAL SERVER UNAVAILABLE')</script></body></html>`;
 
 function libraryChrome(selectedId) {
   const selected = JSON.stringify(selectedId);
@@ -228,16 +371,16 @@ function libraryChrome(selectedId) {
     .library-search{box-sizing:border-box;width:100%;margin-top:12px;padding:9px 10px;background:#000;color:#fff;border:1px solid #333;border-radius:5px;outline:none}.library-search:focus{border-color:#fff}
     .library-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:9px}.library-tab{padding:7px 5px;background:#0b0b0b;color:#999;border:1px solid #292929;border-radius:4px;cursor:pointer;font:inherit}.library-tab.on{background:#fff;color:#000;border-color:#fff;font-weight:900}
     .library-count{padding:8px 14px;color:#666;border-bottom:1px solid #171717;font-size:10px}.library-sessions{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:6px}.library-session{position:relative;padding:10px 10px 9px;margin:2px 0;border:1px solid transparent;border-radius:6px;cursor:pointer}.library-session:hover{background:#0e0e0e;border-color:#292929}.library-session.on{background:#101010;border-color:#fff}
-    .library-session-title{padding-right:30px;color:#eee;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.library-session-meta{display:flex;gap:7px;margin-top:6px;padding-right:24px;color:#777;font-size:9px}.library-agent{font-weight:900;letter-spacing:.6px}.library-agent.codex{color:#5eead4}.library-agent.claude{color:#fbbf24}.library-live{position:absolute;right:9px;top:11px;width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e}.library-note-plus{position:absolute;right:7px;bottom:7px;width:20px;height:20px;padding:0;border:1px solid #444;border-radius:4px;background:#090909;color:#ddd;font:900 13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}.library-note-plus:hover{background:#fff;color:#000}.library-note-plus.has-note{background:#facc15;color:#000;border-color:#facc15}
+    .library-session-title{padding-right:30px;color:#eee;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.library-session-folder{margin-top:6px;padding-right:4px;color:#8a8a8a;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.library-session-meta{display:flex;gap:7px;margin-top:4px;padding-right:76px;color:#666;font-size:9px}.library-agent{font-weight:900;letter-spacing:.6px}.library-agent.codex{color:#5eead4}.library-agent.claude{color:#fbbf24}.library-live{position:absolute;right:9px;top:11px;width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e}.library-note-plus,.library-resume{position:absolute;bottom:7px;height:20px;padding:0;border:1px solid #444;border-radius:4px;background:#090909;color:#ddd;font:900 10px/18px ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}.library-note-plus{right:7px;width:20px;font-size:13px}.library-resume{right:32px;width:54px}.library-note-plus:hover,.library-resume:hover{background:#fff;color:#000}.library-note-plus.has-note{background:#facc15;color:#000;border-color:#facc15}
     @media(max-width:900px){body{padding-left:250px!important}.library-rail{width:250px}body>.container>.controls{left:calc(50% + 125px)!important;max-width:calc(100vw - 250px)!important}body>.container>.activity-legend{left:258px!important}}
-  </style><aside class="library-rail"><div class="library-head"><div class="library-brand">AGENT REPLAY</div><div class="library-sub">One complete timeline per session</div><input id="librarySearch" class="library-search" placeholder="Search sessions or projects"><div class="library-tabs"><button class="library-tab on" data-filter="all">ALL</button><button class="library-tab" data-filter="codex">CODEX</button><button class="library-tab" data-filter="claude">CLAUDE</button></div></div><div id="libraryCount" class="library-count">SCANNING SESSIONS</div><div id="librarySessions" class="library-sessions"></div></aside><script>(function(){
+  </style><aside class="library-rail"><div class="library-head"><div class="library-brand">AGENT REPLAY</div><div class="library-sub">One timeline for every terminal run</div><input id="librarySearch" class="library-search" placeholder="Search terminals or projects"><div class="library-tabs"><button class="library-tab on" data-filter="all">ALL</button><button class="library-tab" data-filter="codex">CODEX</button><button class="library-tab" data-filter="claude">CLAUDE</button></div></div><div id="libraryCount" class="library-count">SCANNING TERMINALS</div><div id="librarySessions" class="library-sessions"></div></aside><script>(function(){
     var selected=${selected},sessions=[],filter='all',list=document.getElementById('librarySessions'),search=document.getElementById('librarySearch'),count=document.getElementById('libraryCount');window.AGENT_REPLAY_SESSION_ID=selected;
     function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
     function ago(ms){var m=Math.floor(Math.max(0,Date.now()-ms)/60000),h=Math.floor(m/60),d=Math.floor(h/24);return m<1?'now':m<60?m+'m':h<24?h+'h':d<30?d+'d':new Date(ms).toLocaleDateString()}
     function tabNotes(){try{return JSON.parse(localStorage.getItem('agent-replay-tab-notes')||'{}')||{}}catch(_){return{}}}
-    function render(){var notes=tabNotes(),q=search.value.trim().toLowerCase(),shown=sessions.filter(function(s){return(filter==='all'||s.agent===filter)&&(!q||(s.title+' '+s.project+' '+s.agent).toLowerCase().includes(q))});count.textContent=shown.length+' OF '+sessions.length+' SESSIONS';list.innerHTML=shown.map(function(s){return'<div class="library-session '+(s.id===selected?'on':'')+'" data-id="'+s.id+'">'+(s.active?'<span class="library-live"></span>':'')+'<div class="library-session-title">'+esc(s.title)+'</div><div class="library-session-meta"><span class="library-agent '+s.agent+'">'+s.agent.toUpperCase()+'</span><span>'+esc(s.project)+'</span><span>'+ago(s.modified)+'</span></div><button class="library-note-plus '+(notes[s.id]?'has-note':'')+'" title="Add a session note">+</button></div>'}).join('')}
-    function load(){fetch('/api/sessions').then(function(r){return r.json()}).then(function(value){sessions=value;render()}).catch(function(){count.textContent='SERVER UNAVAILABLE'})}
-    list.addEventListener('click',function(e){var row=e.target.closest('.library-session');if(!row)return;if(e.target.closest('.library-note-plus')){e.preventDefault();e.stopPropagation();var notes=tabNotes(),old=notes[row.dataset.id]||'',next=prompt('Session note',old);if(next===null)return;if(next.trim())notes[row.dataset.id]=next.trim();else delete notes[row.dataset.id];localStorage.setItem('agent-replay-tab-notes',JSON.stringify(notes));render();return}if(row.dataset.id===selected)return;if(window.captureReplayLiveState)window.captureReplayLiveState();localStorage.setItem('agent-replay-library-selected',row.dataset.id);location.href='/view?id='+encodeURIComponent(row.dataset.id)+'#turn=999999r'});
+    function render(){var notes=tabNotes(),q=search.value.trim().toLowerCase(),shown=sessions.filter(function(s){return(filter==='all'||s.agent===filter)&&(!q||(s.title+' '+s.project+' '+s.cwd+' '+s.agent).toLowerCase().includes(q))});count.textContent=shown.length+' OF '+sessions.length+' TERMINALS';list.innerHTML=shown.map(function(s){return'<div class="library-session '+(s.id===selected?'on':'')+'" data-id="'+s.id+'">'+(s.active?'<span class="library-live"></span>':'')+'<div class="library-session-title">'+esc(s.title)+'</div><div class="library-session-folder" title="'+esc(s.cwd)+'">'+esc(s.cwd)+'</div><div class="library-session-meta"><span class="library-agent '+s.agent+'">'+s.agent.toUpperCase()+'</span>'+(s.clears?'<span>'+s.clears+' CLEAR'+(s.clears===1?'':'S')+'</span>':'')+'<span>'+ago(s.modified)+'</span></div><button class="library-resume" title="Resume this terminal">RESUME</button><button class="library-note-plus '+(notes[s.id]?'has-note':'')+'" title="Add a terminal note">+</button></div>'}).join('')}
+    function load(){fetch('/api/sessions').then(function(r){return r.json()}).then(function(value){sessions=value;var match=sessions.find(function(s){return s.id===selected||s.aliases&&s.aliases.indexOf(selected)>=0});if(match&&match.id!==selected){var notes=tabNotes();if(notes[selected]&&!notes[match.id])notes[match.id]=notes[selected];selected=match.id;localStorage.setItem('agent-replay-library-selected',selected);localStorage.setItem('agent-replay-tab-notes',JSON.stringify(notes))}render()}).catch(function(){count.textContent='SERVER UNAVAILABLE'})}
+    list.addEventListener('click',function(e){var row=e.target.closest('.library-session');if(!row)return;if(e.target.closest('.library-resume')){e.preventDefault();e.stopPropagation();var button=e.target.closest('.library-resume');button.textContent='OPEN';fetch('/api/resume',{method:'POST',headers:{'content-type':'application/json','x-agent-replay-action':'resume'},body:JSON.stringify({sessionId:row.dataset.id})}).then(function(r){if(!r.ok)throw new Error();button.textContent='OPENED';setTimeout(function(){button.textContent='RESUME'},1400)}).catch(function(){button.textContent='FAILED';setTimeout(function(){button.textContent='RESUME'},1800)});return}if(e.target.closest('.library-note-plus')){e.preventDefault();e.stopPropagation();var notes=tabNotes(),old=notes[row.dataset.id]||'',next=prompt('Terminal note',old);if(next===null)return;if(next.trim())notes[row.dataset.id]=next.trim();else delete notes[row.dataset.id];localStorage.setItem('agent-replay-tab-notes',JSON.stringify(notes));render();return}if(row.dataset.id===selected)return;if(window.captureReplayLiveState)window.captureReplayLiveState();localStorage.setItem('agent-replay-library-selected',row.dataset.id);location.href='/view?id='+encodeURIComponent(row.dataset.id)+'#turn=999999r'});
     search.addEventListener('input',render);document.querySelectorAll('.library-tab').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('.library-tab').forEach(function(x){x.classList.remove('on')});button.classList.add('on');filter=button.dataset.filter;render()})});
     localStorage.setItem('agent-replay-library-selected',selected);load();setInterval(load,5000);
   })();</script>`;
@@ -250,7 +393,7 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 }
 function commentsMarkdown(session, payload) {
-  const lines = ['# Session comments', '', 'Session: ' + session.title, 'Agent: ' + session.agent, 'Project: ' + session.project, 'Exported: ' + new Date().toISOString(), ''];
+  const lines = ['# Terminal comments', '', 'Terminal: ' + session.title, 'Agent: ' + session.agent, 'Project: ' + session.project, 'Clear boundaries: ' + session.clears, 'Exported: ' + new Date().toISOString(), ''];
   if (payload.tabNote) lines.push('## Sidebar note', '', String(payload.tabNote), '');
   if (payload.sessionNote?.text) lines.push('## Session note', '', String(payload.sessionNote.text), '');
   if (payload.sessionNote?.marker) lines.push('## Saved place', '', 'Turn: ' + payload.sessionNote.marker.turn, 'Block: ' + (payload.sessionNote.marker.block ?? 'whole turn'), '');
@@ -280,6 +423,18 @@ function readRequestJson(req, limit = 4 * 1024 * 1024) {
 function runFile(command, args) {
   return new Promise((resolve, reject) => execFile(command, args, { timeout: 120000, maxBuffer: 8 * 1024 * 1024 }, error => error ? reject(error) : resolve()));
 }
+function shellQuote(value) {
+  return "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
+}
+async function resumeTerminal(session) {
+  const cwd = session.cwd && path.isAbsolute(session.cwd) && fs.existsSync(session.cwd) ? session.cwd : home;
+  const command = session.agent === 'claude'
+    ? `cd ${shellQuote(cwd)} && claude --resume ${shellQuote(session.resumeKey)}`
+    : `cd ${shellQuote(cwd)} && codex resume ${shellQuote(session.resumeKey)}`;
+  const appleCommand = command.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const script = `tell application "Terminal"\nactivate\ndo script "${appleCommand}"\nend tell`;
+  await runFile('/usr/bin/osascript', ['-e', script]);
+}
 async function createSessionExport(session, payload) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-replay-export-'));
   const folderName = safeName(session.agent + '-' + session.project + '-' + new Date(session.modified).toISOString().slice(0,10));
@@ -290,11 +445,15 @@ async function createSessionExport(session, payload) {
   fs.writeFileSync(path.join(folder, 'replay.html'), replay);
   fs.writeFileSync(path.join(folder, 'COMMENTS.md'), commentsMarkdown(session, payload));
   fs.writeFileSync(path.join(folder, 'comments.json'), JSON.stringify({ session: { id: session.id, title: session.title, agent: session.agent, project: session.project }, ...payload }, null, 2));
-  session.files.forEach((source, index) => {
-    const prefix = index === 0 ? 'main-' : 'worker-' + String(index).padStart(3, '0') + '-';
+  const mains = new Set(session.mainFiles || [session.file]);
+  let segmentIndex = 0, workerIndex = 0;
+  session.files.forEach(source => {
+    const prefix = mains.has(source)
+      ? 'segment-' + String(++segmentIndex).padStart(3, '0') + '-'
+      : 'worker-' + String(++workerIndex).padStart(3, '0') + '-';
     fs.copyFileSync(source, path.join(folder, 'transcripts', prefix + path.basename(source)));
   });
-  fs.writeFileSync(path.join(folder, 'manifest.json'), JSON.stringify({ exportedAt: new Date().toISOString(), agent: session.agent, project: session.project, title: session.title, transcriptFiles: session.files.length, workerLogs: session.workerLogs || 0 }, null, 2));
+  fs.writeFileSync(path.join(folder, 'manifest.json'), JSON.stringify({ exportedAt: new Date().toISOString(), agent: session.agent, project: session.project, title: session.title, terminalSegments: session.segmentCount || 1, clearBoundaries: session.clears || 0, transcriptFiles: session.files.length, workerLogs: session.workerLogs || 0 }, null, 2));
   const zipPath = path.join(tempRoot, folderName + '.zip');
   await runFile('/usr/bin/ditto', ['-c', '-k', '--keepParent', folder, zipPath]);
   return { tempRoot, zipPath, filename: folderName + '.zip' };
@@ -306,7 +465,17 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
     return res.end(rootShell);
   }
-  if (url.pathname === '/api/sessions') return json(res, 200, scanSessions().map(({file, files, ...safe}) => safe));
+  if (url.pathname === '/api/sessions') return json(res, 200, scanSessions().map(({file, files, mainFiles, startsWithClear, sessionKey, resumeKey, lastMessage, isWorker, ...safe}) => safe));
+  if (url.pathname === '/api/resume' && req.method === 'POST') {
+    if (req.headers['x-agent-replay-action'] !== 'resume') return json(res, 403, { error: 'missing local action header' });
+    try {
+      const payload = await readRequestJson(req, 64 * 1024);
+      scanSessions(); const session = sessionMap.get(payload.sessionId);
+      if (!session) return json(res, 404, { error: 'terminal not found' });
+      await resumeTerminal(session);
+      return json(res, 200, { ok: true, agent: session.agent, folder: session.cwd });
+    } catch (error) { return json(res, 500, { error: error.message }); }
+  }
   if (url.pathname === '/api/export' && req.method === 'POST') {
     try {
       const payload = await readRequestJson(req);

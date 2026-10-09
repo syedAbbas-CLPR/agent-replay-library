@@ -1,12 +1,15 @@
 # Agent Replay Library
 
-Agent Replay Library turns local Claude Code and Codex sessions into one searchable browser library. Each session opens as a single top-to-bottom trace with readable prompts, thinking, commands, diffs, notes, saved reading positions, and ZIP export.
+Agent Replay Library turns local Claude Code and Codex terminal runs into one searchable browser library. Each terminal opens as a single top-to-bottom trace with readable prompts, thinking, commands, diffs, notes, saved reading positions, and ZIP export.
 
 ![Agent Replay Library demo](assets/demo.gif)
 
 ## What it does
 
 - Finds Claude Code sessions under `~/.claude/projects` and Codex sessions under `~/.codex/sessions`
+- Reconstructs Claude terminal runs across `/clear`, appending every cleared segment to the same timeline
+- Names each terminal from its latest descriptive user message and shows its working folder
+- Resumes an old terminal in macOS Terminal from the sidebar
 - Combines Claude subagent logs into their parent session in chronological order
 - Uses one browser tab with a persistent session rail
 - Separates thinking, action groups, commands, code edits, and Markdown edits
@@ -61,22 +64,22 @@ Clicking a prompt peak or manually scrolling resets the keyboard navigation anch
 
 ## Sharing a replay
 
-Open a session and choose `EXPORT ZIP`. The download contains:
+Open a terminal and choose `EXPORT ZIP`. The download contains:
 
 - `replay.html`, which opens without the server
 - `COMMENTS.md`
 - `comments.json`
 - `manifest.json`
-- the main JSONL transcript
+- every JSONL segment created by clears
 - merged Claude worker logs when present
 
 The exported transcript can include source paths, prompts, command output, and other information captured by the coding agent. Review it before sharing.
 
 ## What happens when a chat is cleared
 
-The library never deletes chats. It rescans the local Claude and Codex JSONL directories every five seconds.
+Claude creates a new JSONL session after `/clear`, but the library reads Claude's history link and appends that segment to the same terminal timeline. The sidebar therefore shows terminal runs, not every cleared chat. It labels terminals by project, agent, and start time instead of using the first prompt as a random title.
 
-If the agent keeps the original JSONL file, the replay remains in the library. A new log appears as a new session. If the source JSONL is physically deleted, its session disappears from the library. An exported ZIP remains independent of the source log.
+A separately opened Claude or Codex process remains a separate terminal. If a source JSONL is physically deleted, that segment disappears from the library. An exported ZIP remains independent of the source logs.
 
 ## How it is installed
 
