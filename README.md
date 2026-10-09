@@ -57,6 +57,8 @@ Uninstalling leaves Claude and Codex session logs and browser notes untouched.
 
 The bottom timeline draws one raised peak for every human prompt. Upcoming prompts are grey, passed prompts are white, and the current prompt is yellow.
 
+Clicking a prompt peak or manually scrolling resets the keyboard navigation anchor. The next arrow command continues from the visible prompt or trace position instead of returning to an older location.
+
 ## Sharing a replay
 
 Open a session and choose `EXPORT ZIP`. The download contains:

@@ -11,7 +11,7 @@ const port = Number(process.argv[2] || 7331);
 const home = os.homedir();
 const theme = path.join(home, '.config/claude-replay/high-contrast.json');
 const cacheDir = path.join(os.tmpdir(), 'agent-replay-library-cache');
-const rendererVersion = 'library-ui-12';
+const rendererVersion = 'library-ui-13';
 fs.mkdirSync(cacheDir, { recursive: true });
 let sessionMap = new Map();
 let buildJobs = new Map();

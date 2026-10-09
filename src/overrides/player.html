@@ -2972,6 +2972,7 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
   function onScrollUpdate() {
     if (playing || Date.now() < scrollProtectUntil) return;
     if (isSplashVisible()) return;
+    resetKeyboardNavigationCursor(true);
     const turns = turnElements();
     if (!turns.length) return;
     const viewMid = window.innerHeight / 2;
@@ -3152,16 +3153,24 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
   syncCheckbox(toggleTools, toggleTools2);
 
   // Progress bar interactions
-  progressBar.addEventListener("click", (e) => seekFromX(e.clientX));
+  progressBar.addEventListener("click", (e) => {
+    resetKeyboardNavigationCursor(true);
+    seekFromX(e.clientX);
+    anchorKeyboardToActivePrompt();
+  });
 
   // Touch drag on progress bar
   progressBar.addEventListener("touchstart", (e) => {
     e.preventDefault();
+    resetKeyboardNavigationCursor(true);
     seekFromX(e.touches[0].clientX);
+    anchorKeyboardToActivePrompt();
   }, { passive: false });
   progressBar.addEventListener("touchmove", (e) => {
     e.preventDefault();
+    resetKeyboardNavigationCursor(true);
     seekFromX(e.touches[0].clientX);
+    anchorKeyboardToActivePrompt();
   }, { passive: false });
 
   // Progress bar hover tooltip
@@ -3190,6 +3199,24 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
 
   let lastJumpedBlock = null;
   let lastPromptTarget = null;
+  let keyboardAnchorAtPrompt = false;
+
+  function resetKeyboardNavigationCursor(closeFocused = false) {
+    if (closeFocused && lastJumpedBlock) {
+      lastJumpedBlock.classList.remove("open");
+      lastJumpedBlock.closest(".tool-group")?.classList.remove("open");
+    }
+    for (const el of document.querySelectorAll(".trace-focus")) el.classList.remove("trace-focus");
+    lastJumpedBlock = null;
+    lastPromptTarget = null;
+    keyboardAnchorAtPrompt = false;
+  }
+
+  function anchorKeyboardToActivePrompt() {
+    const activeTurn = document.querySelector(".turn.active");
+    lastPromptTarget = activeTurn?.querySelector(".role-section.role-user") || null;
+    keyboardAnchorAtPrompt = Boolean(lastPromptTarget);
+  }
 
   function exposeTarget(target, openTarget = true) {
     if (!target) return;
@@ -3226,6 +3253,7 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
     if (target.classList.contains("tool-group")) closeGroupPeers(target);
     target.classList.add("trace-focus");
     lastJumpedBlock = target;
+    keyboardAnchorAtPrompt = false;
     scrollProtectUntil = Date.now() + 1800;
     target.scrollIntoView({ behavior:"smooth", block:"center" });
     window.replayReadingPaused = true;
@@ -3252,6 +3280,7 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
     for (const el of document.querySelectorAll(".trace-focus")) el.classList.remove("trace-focus");
     target.classList.add("trace-focus");
     lastPromptTarget = target;
+    keyboardAnchorAtPrompt = true;
     scrollProtectUntil = Date.now() + 1800;
     target.scrollIntoView({ behavior:"smooth", block:"start" });
     window.replayReadingPaused = true;
@@ -3266,9 +3295,20 @@ mark.replay-search-hit.current { background:#fff; outline:2px solid #f59e0b; out
     const blocks = traceTargets();
     if (!blocks.length) return;
     let index = lastJumpedBlock ? blocks.indexOf(lastJumpedBlock) : -1;
+    let anchoredToPrompt = false;
     if (index < 0) {
-      const line = window.innerHeight * .5;
-      index = blocks.findLastIndex((el) => el.getBoundingClientRect().top < line);
+      if (keyboardAnchorAtPrompt) {
+        const activeTurn = document.querySelector(".turn.active");
+        const localIndexes = blocks.map((el, i) => activeTurn?.contains(el) ? i : -1).filter(i => i >= 0);
+        if (localIndexes.length) {
+          index = dir > 0 ? localIndexes[0] - 1 : localIndexes[localIndexes.length - 1] + 1;
+          anchoredToPrompt = true;
+        }
+      }
+      if (index < 0 && !anchoredToPrompt) {
+        const line = window.innerHeight * .5;
+        index = blocks.findLastIndex((el) => el.getBoundingClientRect().top < line);
+      }
     }
     index = dir > 0 ? Math.min(index + 1, blocks.length - 1) : Math.max(index - 1, 0);
     focusTraceTarget(blocks[index]);
